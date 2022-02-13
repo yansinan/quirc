@@ -244,21 +244,21 @@ STATIC int _feed_buf()//uint8_t *buf, size_t len_buf,int in_w,int in_h
 fail_qr:
 	return -1;
 }
-STATIC void * _decode_qrcode(int num_codes,char **out_str_join,size_t *out_len){
+STATIC int * _decode_qrcode(char **list_str_res,int num_codes){
     if (!qr_global) {
         printf("couldn't allocate QR decoder\n");
         buf=NULL;
         return false;
         // return mp_const_false;
     }
+    // int num_codes= sizeof(*list_str_res) / sizeof(**list_str_res);
     if(num_codes>0){
         //给cbFun的输出对象
-        mp_obj_t list_mp_obj[num_codes];
+        // mp_obj_t list_mp_obj[num_codes];
         //mp_obj_t out_tuple = mp_obj_new_tuple((size_t)num_codes, NULL);
         // for (int i = 0; i < num_codes; i++) {
         //    list_mp_obj[i] = mp_obj_new_str("1234567890",11);
         // }
-        char *list_str_res[num_codes];
         int len_all=0;
 
         /* We've previously fed an image to the decoder via quirc_begin/quirc_end.*/
@@ -274,49 +274,43 @@ STATIC void * _decode_qrcode(int num_codes,char **out_str_join,size_t *out_len){
                 len_all+=strlen(quirc_strerror(err));
 
                 printf("Quirc DECODE:FAILED: %s\n", quirc_strerror(err));
-                // list_str_res[i]=(char *)quirc_strerror(err);
                 list_str_res[i]=heap_caps_malloc(strlen(quirc_strerror(err)), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
                 strcpy(list_str_res[i],(char *)quirc_strerror(err));
-
                 printf("Quirc DECODE:FAILED list_str_res: %s\n", list_str_res[i]);
-                list_mp_obj[i]=mp_obj_new_str_dr(quirc_strerror(err),strlen(quirc_strerror(err)));
+
+                // list_mp_obj[i]=mp_obj_new_str_dr(quirc_strerror(err),strlen(quirc_strerror(err)));
             }else{
                 printf("Quirc DECODE:OK Data: %s\n", data.payload);
                 len_all+=data.payload_len;
 
                 list_str_res[i]=heap_caps_malloc(data.payload_len, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
                 strcpy(list_str_res[i],(char *)data.payload);
-                printf("Data list_str_res: %s\n", list_str_res[i]);
+                printf("Quirc DECODE:OK Data list_str_res: %s\n", list_str_res[i]);
 
-                list_mp_obj[i]=mp_obj_new_str_dr((const char *)data.payload,data.payload_len);
+                // list_mp_obj[i]=mp_obj_new_str_dr((const char *)data.payload,data.payload_len);
             }
             // mp_obj_list_append(ret_list, mp_obj_str_msg);//可能是因为引用的问题，mp_obj一系列在xTask任务中，访问都出错
 
         }
-        char str_res_long[len_all];
-        printf("str_res_long.len_all: %d\n", len_all);
-        //// memset(str_data,",",len_all);
-        for (int i = 0; i < num_codes; i++) {
-            strcat(str_res_long,list_str_res[i]);
-            free(list_str_res[i]);
-            printf("str_res_long: %s\n", str_res_long);
-        }
-        printf("str_res_long final: %s ,len=%d \n", str_res_long,len_all);
-        *out_len=len_all;
-        *out_str_join=(char *)heap_caps_malloc(len_all, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+        // char str_res_long[len_all];
+        // printf("str_res_long.len_all: %d\n", len_all);
+        // //// memset(str_data,",",len_all);
+        // for (int i = 0; i < num_codes; i++) {
+        //     strcat(str_res_long,list_str_res[i]);
+        //     free(list_str_res[i]);
+        //     printf("str_res_long: %s\n", str_res_long);
+        // }
+        // printf("str_res_long final: %s ,len=%d \n", str_res_long,len_all);
 
-        strcpy(*out_str_join,str_res_long);
-        printf("out_str_join final ptr: %d, string:%s ,len=%d \n",(int)*out_str_join, *out_str_join,*out_len);
-
-        // micropython callback
-        if (mp_cb_decode != mp_const_none && num_codes>0 && mp_obj_is_callable(mp_cb_decode)){
-            // mp_sched_schedule(mp_cb_decode, mp_const_true);
-            mp_sched_schedule(mp_cb_decode, mp_obj_new_list_dr(num_codes, list_mp_obj));//mp_obj_new_str(str_res_long,len_all)//mp_obj_new_tuple((size_t)num_codes,out_tuple)
-        }
-        return str_res_long;
+        // // micropython callback
+        // if (mp_cb_decode != mp_const_none && num_codes>0 && mp_obj_is_callable(mp_cb_decode)){
+        //     // mp_sched_schedule(mp_cb_decode, mp_const_true);
+        //     mp_sched_schedule(mp_cb_decode, mp_obj_new_list_dr(num_codes, list_mp_obj));//mp_obj_new_str(str_res_long,len_all)//mp_obj_new_tuple((size_t)num_codes,out_tuple)
+        // }
+        return len_all;
 
     }
-    return "fail";
+    return 0;
 }
 
 char *str_decode_join=NULL;
@@ -396,47 +390,33 @@ STATIC void loop_xtask_buf(){
             printf("after _feed_buf \n");
 
             if(cnt_codes>0){
-                if(str_decode_join || len_str_decode_join>0){
-                    if(*str_decode_join){
-                        free(str_decode_join);
-                        str_decode_join=NULL;
-                        len_str_decode_join=0;
-                    }
-                }
-            }
-
-            // decode
-            char *str_res_long= _decode_qrcode(cnt_codes,&str_decode_join,&len_str_decode_join);
-
-            // micropython callback
-            printf("str_decode_join %d ,is NULL %d ,len = %d \n",(int)str_decode_join,(int)(!str_decode_join),len_str_decode_join);
-            // printf("str_res_long %d ,is NULL %d ,len = %d \n",(int)str_res_long,(int)(!str_res_long),strlen(str_res_long));
-            if(str_decode_join)printf("*str_decode_join %d \n",(int)(*str_decode_join));
-            printf("mp_cb_decode %d ,mp_obj_is_callable(mp_cb_decode) %d \n",(int)mp_cb_decode,(int)mp_obj_is_callable(mp_cb_decode));
-
-            // mp_call_function_0_protected(mp_cb_decode);
-            // mp_call_function_0(mp_cb_decode);
-            if (mp_cb_decode != mp_const_none && cnt_codes>0 && mp_obj_is_callable(mp_cb_decode) && str_decode_join!=NULL){
-                if(str_decode_join)printf("Test222222222-------,str_decode_join=%s ,len = %d \n",str_decode_join,len_str_decode_join);
-                // mp_call_function_1_protected(mp_cb_decode, mp_obj_new_str(str_res_long,strlen(str_res_long)));
-                mp_obj_t mp_obj_res=mp_obj_new_str_dr(str_decode_join,15);
-                printf("after mp_obj_res \n");
-                printf("Test3333333-------,mp_obj_res=%d \n",(int)mp_obj_res);
-                printf("Test3333333-------,const char *str = %s \n",mp_obj_str_get_str(mp_obj_res));
-                // mp_obj_t mp_obj_new_str(const char *data, size_t len) {
-                //     qstr q = qstr_find_strn(data, len);
-                //     if (q != MP_QSTRnull) {
-                //         // qstr with this data already exists
-                //         return MP_OBJ_NEW_QSTR(q);
-                //     } else {
-                //         // no existing qstr, don't make one
-                //         return mp_obj_new_str_copy(&mp_type_str, (const byte *)data, len);
+                // if(str_decode_join || len_str_decode_join>0){
+                //     if(*str_decode_join){
+                //         free(str_decode_join);
+                //         str_decode_join=NULL;
+                //         len_str_decode_join=0;
                 //     }
                 // }
-                mp_sched_schedule(mp_cb_decode, mp_obj_res);
+                // decode
+                char *list_str_res[cnt_codes];
+                int len_str_res_join= _decode_qrcode(list_str_res,cnt_codes);//返回所有字符串连接后的总长度
+                // micropython callback
+                // printf("str_decode_join %d ,is NULL %d ,len = %d \n",(int)str_decode_join,(int)(!str_decode_join),len_str_decode_join);
+                // if(str_decode_join)printf("*str_decode_join %d \n",(int)(*str_decode_join));
+                // printf("mp_cb_decode %d ,mp_obj_is_callable(mp_cb_decode) %d \n",(int)mp_cb_decode,(int)mp_obj_is_callable(mp_cb_decode));
+
+                if (mp_cb_decode != mp_const_none && cnt_codes>0 && mp_obj_is_callable(mp_cb_decode) && len_str_res_join>0){
+                    // mp_call_function_1_protected(mp_cb_decode, mp_obj_new_str(str_res_long,strlen(str_res_long)));
+                    mp_obj_t list_mp_str_res[cnt_codes];
+                    for(int i=0;i<cnt_codes;i++){
+                        list_mp_str_res[i]=mp_obj_new_str_dr((const char *)list_str_res[i],strlen(list_str_res[i]));
+                    }
+                    mp_sched_schedule(mp_cb_decode, mp_obj_new_list_dr(cnt_codes, list_mp_str_res));
+                }
+                // if(str_res_long)printf("Test444444-------,str_res_long=%s ,len = %d \n",str_res_long,len_str_decode_join);
+
             }
-            if(str_res_long)printf("Test444444-------,str_res_long=%s ,len = %d \n",str_res_long,len_str_decode_join);
-            // printf("before vTaskSuspend %d \n",(int)handle_xtask_decode);
+
             buf=NULL;
             printf("after buf=NULL\n");
         }
@@ -464,15 +444,25 @@ STATIC mp_obj_t mp_init_quirc(mp_obj_t in_int_w,mp_obj_t in_int_h)//const uint8_
 STATIC MP_DEFINE_CONST_FUN_OBJ_2(dr_mp_init_obj, mp_init_quirc);
  
 //micropython接口，传入num_codes
-STATIC mp_obj_t decode_qrcode(mp_obj_t in_cnt_codes)//const uint8_t *fb
+STATIC mp_obj_t decode_qrcode(mp_obj_t in_cnt_codes,mp_obj_t in_cb)//const uint8_t *fb
 {
     int num_codes = mp_obj_get_int(in_cnt_codes);
-    // _decode_qrcode(num_codes);
+    char *list_str_res[cnt_codes];
+    int len_str_res_join= _decode_qrcode(list_str_res,cnt_codes);//返回所有字符串连接后的总长度
+
+    if (mp_cb_decode != mp_const_none && cnt_codes>0 && mp_obj_is_callable(mp_cb_decode) && len_str_res_join>0){
+        mp_obj_t list_mp_str_res[cnt_codes];
+        for(int i=0;i<cnt_codes;i++){
+            list_mp_str_res[i]=mp_obj_new_str_dr((const char *)list_str_res[i],strlen(list_str_res[i]));
+        }
+        mp_sched_schedule(mp_cb_decode, mp_obj_new_list_dr(cnt_codes, list_mp_str_res));
+    }
+
     bool is_decode_suc=true;
     return is_decode_suc?mp_const_true:mp_const_false;//mp_obj_new_tuple(num_codes, out_tuple);    
 }
 // Define a Python reference to the function above.
-STATIC MP_DEFINE_CONST_FUN_OBJ_1(dr_mp_quirc_decode_obj, decode_qrcode);
+STATIC MP_DEFINE_CONST_FUN_OBJ_2(dr_mp_quirc_decode_obj, decode_qrcode);
 
 //micropython接口，传入bytes,图像，cbFuntion;宽，高 之前设定，或type quirc设定，或默认值
 STATIC mp_obj_t feed_buf(const mp_obj_t in_mp_obj_fb,mp_obj_t mp_cb_decode)//const uint8_t *fb
@@ -558,7 +548,7 @@ STATIC mp_obj_t quirc_feed(mp_obj_t self_in , const mp_obj_t in_mp_obj_fb)//,mp_
     //// 保存到全局
     //mp_cb_decode=self->mp_cb_decode;
 
-    mp_obj_quirc_t *self = MP_OBJ_TO_PTR(self_in);  //从第一个参数中提取对象指针
+    // mp_obj_quirc_t *self = MP_OBJ_TO_PTR(self_in);  //从第一个参数中提取对象指针
     if(!buf){
         GET_STR_DATA_LEN(in_mp_obj_fb, byte_buf, len_byte_buf);
         // 赋予静态变量
