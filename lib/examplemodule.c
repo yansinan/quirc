@@ -215,10 +215,11 @@ STATIC bool _init_quirc(const int in_local_w,const int in_local_h){
     // 给xTask
     if(!handle_xtask_decode){
         // 测试过:20*1024不够
+        int mem_need=in_w*in_h > 320*240 ? 80*1024 : 30*1024;
         if (xTaskCreatePinnedToCore(
             loop_xtask_buf, 
             "task_quirc_read",
-            30*1024,
+            mem_need,
             NULL, 
             configMAX_PRIORITIES - 3, 
             &handle_xtask_decode,
@@ -455,6 +456,7 @@ typedef struct _mp_obj_quirc_t
     mp_obj_t mp_cb_decode;
 } mp_obj_quirc_t;
 const mp_obj_type_t mp_obj_quirc_type;
+///////////////////////////////////定义quirc type
 
 //quirc的成员函数 
 // set cbFun of decode
