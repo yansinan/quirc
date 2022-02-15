@@ -339,7 +339,7 @@ STATIC int _decode_qrcode(char **list_str_res,int num_codes){
 // 触发micropython的回调函数
 STATIC bool _cb_fun_decode_res(mp_obj_t mp_cb_decode,char ** list_str_res,int cnt_codes,int len_str_res_join){
     // micropython callback
-    if (mp_cb_decode != mp_const_none && cnt_codes>0 && mp_obj_is_callable(mp_cb_decode) && len_str_res_join>0){
+    if (mp_cb_decode!=NULL && mp_cb_decode != mp_const_none && cnt_codes>0 && mp_obj_is_callable(mp_cb_decode) && len_str_res_join>0){
         // mp_call_function_1_protected(mp_cb_decode, mp_obj_new_str(str_res_long,strlen(str_res_long)));
         mp_obj_t list_mp_str_res[cnt_codes];
         for(int i=0;i<cnt_codes;i++){
@@ -540,8 +540,8 @@ STATIC mp_obj_t quirc_make_new(const mp_obj_type_t *type, size_t n_args, size_t 
     self->fb.height = mp_obj_get_int(args[1]);//识别图像缩放高
     bool is_inited=_init_quirc(self->fb.width,self->fb.height);
 
-    if(n_args==3)quirc_cb(self,args[2]); //可选第三个参数，cbFunction
-    if(n_args==4)self->is_debug=mp_obj_is_true(args[3]); //可选第四个参数，是否debug输出
+    if(n_args>=3)quirc_cb(self,args[2]); //可选第三个参数，cbFunction
+    if(n_args>=4)self->is_debug=mp_obj_is_true(args[3]); //可选第四个参数，是否debug输出
 
     !obj_quirc.is_debug?0:printf("quirc_make_new _init_quirc return %d \n",(int)is_inited);
     
