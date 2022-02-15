@@ -24,25 +24,60 @@ void *m_malloc_dr(size_t num_bytes) {
 #define m_new_obj_dr(type) (m_new_dr(type, 1))
 #define mp_seq_clear_dr(start, len, alloc_len, item_sz) memset((byte *)(start) + (len) * (item_sz), 0, ((alloc_len) - (len)) * (item_sz))
 
+// freeRTOS
+#include "freertos/FreeRTOS.h" //configMAX_PRIORITIES
+#include "freertos/task.h"
+#include "freertos/portmacro.h" //TickType_t
+
+STATIC void loop_xtask_buf();
 // quirc
 #include "decode.c"
 #include "identify.c"
 #include "version_db.c"
 #include "quirc.c"
 // quirc--end
-// 自定义结构体
-STATIC struct quirc *qr_global;
-STATIC uint8_t *buf;
-STATIC size_t len_buf;
-STATIC int in_w=0,in_h=0;
-STATIC mp_obj_t mp_cb_decode=mp_const_none;
 
-// freeRTOS
-#include "freertos/FreeRTOS.h" //configMAX_PRIORITIES
-#include "freertos/task.h"
-#include "freertos/portmacro.h" //TickType_t
-TaskHandle_t handle_xtask_decode=NULL;
-STATIC void loop_xtask_buf();
+///////////////////////////////////定义quirc type
+// c用到的数据，用来处理对应的uPy数据；传入buf所需的结构体
+/**
+ * @brief Data structure of frame buffer 部分同esp_camera.h
+ */
+typedef struct {
+    uint8_t * buf;              /*!< Pointer to the pixel data */
+    size_t len;                 /*!< Length of the buffer in bytes */
+    size_t width;               /*!< Width of the buffer in pixels */
+    size_t height;              /*!< Height of the buffer in pixels */
+    // pixformat_t format;         /*!< Format of the pixel data */
+    // struct timeval timestamp;   /*!< Timestamp since boot of the first DMA buffer of the frame */
+} quirc_fb_t;
+// 自定义结构体
+typedef struct _mp_obj_quirc_t
+{
+    mp_obj_base_t base;
+    struct quirc *qr;
+    quirc_fb_t fb;
+    mp_obj_t mp_cb_decode; //decode完成的回调函数
+    TaskHandle_t handle_xtask_decode;
+
+    bool is_debug;
+} mp_obj_quirc_t;
+
+// 全局指针，等价于 mp_obj_quirc_t *self
+mp_obj_quirc_t obj_quirc={
+    .fb={
+        .buf=NULL,
+        .len=0,
+        .width=0,
+        .height=0
+    },
+    .qr=NULL,
+    .mp_cb_decode=NULL,
+    .handle_xtask_decode=NULL,
+    .is_debug=false
+};
+const mp_obj_type_t mp_obj_quirc_type;
+STATIC mp_obj_t close_quirc();
+
 
 /*
 #ifdef CONFIG_ESP32CAM
@@ -110,15 +145,15 @@ STATIC void loop_xtask_buf();
         }
         printf("Camera in qrcode init success!!\n");
 
-        printf("quirc camera_init qr_global=> !qr %d \n",(!qr_global));
-        if (!qr_global) {
-	       qr_global = quirc_new();
-        	if (!qr_global) {
+        printf("quirc camera_init obj_quirc.qr=> !qr %d \n",(!obj_quirc.qr));
+        if (!obj_quirc.qr) {
+	       obj_quirc.qr = quirc_new();
+        	if (!obj_quirc.qr) {
                printf("couldn't allocate QR decoder\n");
                goto fail_qr;
            }
         }
-        if (quirc_resize(qr_global, 640, 480) < 0) {
+        if (quirc_resize(obj_quirc.qr, 640, 480) < 0) {
             printf("couldn't allocate QR buffer\n");
             goto fail_qr_resize;
         }
@@ -133,16 +168,16 @@ STATIC void loop_xtask_buf();
 #endif
 */
 // #define DR_DEBUG_PRINT
-#ifdef DR_DEBUG_PRINT
+// debug输出
 // 测试用，查看buf内容
-STATIC void printBuf(uint8_t *in_buf,int in_len,char *in_msg )
-{
+STATIC void printBuf(const uint8_t *in_buf,int in_len,char *in_msg ){
+#ifdef DR_DEBUG_PRINT
     for (int ii = 0; ii < 10; ii++){
         printf("x%x,", *(in_buf + ii));
 	}
     printf("%s buf[0:10]: %d len %d\n",in_msg, (int)in_buf,in_len);
-}
 #endif
+}
 // 解决mp_obj_new_str的bug，把功能层层展开
 STATIC mp_obj_t mp_obj_new_str_dr(const char *data, size_t len)
 {
@@ -190,62 +225,68 @@ STATIC mp_obj_t mp_obj_new_list_dr(size_t n, mp_obj_t *items) {
 
 // 初始化quirc,xTask
 STATIC bool _init_quirc(const int in_local_w,const int in_local_h){
-    if (!qr_global) {
-        qr_global = quirc_new();
-        if (!qr_global) {
-            printf("couldn't allocate QR decoder\n");
+    bool is_quirc_new=false;
+    if (!obj_quirc.qr) {
+        obj_quirc.qr = quirc_new();
+        is_quirc_new=true;
+        if (!obj_quirc.qr) {
+            close_quirc();
+            mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("couldn't allocate QR buffer"));
             return false;
         }
     }
     //设置两个初始值，保证至少一次ressize
-    if(in_local_w==0 && in_w==0)in_w=320;
-    if(in_local_h==0 && in_h==0)in_h=240;
-    const int new_w=in_local_w==0?in_w:in_local_w;
-    const int new_h=in_local_h==0?in_h:in_local_h;
-    if(in_w!=in_local_w || in_h!=in_local_h){
-        if (quirc_resize(qr_global, new_w, new_h) < 0) {
-            printf("couldn't allocate QR buffer\n");
+    if(in_local_w==0 && obj_quirc.fb.width==0)obj_quirc.fb.width=320;
+    if(in_local_h==0 && obj_quirc.fb.height==0)obj_quirc.fb.height=240;
+    const int new_w=in_local_w==0?obj_quirc.fb.width:in_local_w;
+    const int new_h=in_local_h==0?obj_quirc.fb.height:in_local_h;
+    // printf("before resize: new wxh:%d,%d|in_local_wxh：%d,%d|,obj_quirc.fb.wxh:%d,%d \n",new_w,new_h,in_local_w,in_local_h,obj_quirc.fb.width,obj_quirc.fb.height);
+    if(is_quirc_new || obj_quirc.fb.width!=new_w || obj_quirc.fb.height!=new_h){
+        if (quirc_resize(obj_quirc.qr, new_w, new_h) < 0) {
+            close_quirc();
+            mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("couldn't resize QR buffer"));
             return false;
         }
-        in_w=new_w;
-        in_h=new_h;
+        obj_quirc.fb.width=new_w;
+        obj_quirc.fb.height=new_h;
         printf("quirc_resize() done %d x %d\n",in_local_w,in_local_h);
     }
 
     // 给xTask
-    if(!handle_xtask_decode){
+    if(!obj_quirc.handle_xtask_decode){
         // 测试过:20*1024不够
-        int mem_need=in_w*in_h > 320*240 ? 80*1024 : 30*1024;
+        int mem_need=(obj_quirc.fb.width*obj_quirc.fb.height > 320*240) ? (80*1024)+8896 : 30*1024;//8896是quirc.payload的数组长度
         if (xTaskCreatePinnedToCore(
             loop_xtask_buf, 
             "task_quirc_read",
             mem_need,
             NULL, 
             configMAX_PRIORITIES - 3, 
-            &handle_xtask_decode,
+            &obj_quirc.handle_xtask_decode,
             1) != pdPASS) {
+            close_quirc();
             mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("failed to create quirc task"));
             return false;
         }
-        printf("xTask begin %d \n",(int)handle_xtask_decode);
+        !obj_quirc.is_debug?0:printf("xTask begin %p \n",obj_quirc.handle_xtask_decode);
     }
     return true;
 }
 
 // c函数，处理uint8_t *buf
-STATIC int _feed_buf()//uint8_t *buf, size_t len_buf,int in_w,int in_h
+STATIC int _feed_buf()
 {
-    // printf("quirc _feed_buf qr_global=> !qr_global %d \n",(!qr_global));
-    if(!_init_quirc(in_w,in_h))goto fail_qr;
+    // printf("quirc _feed_buf obj_quirc.qr=> !obj_quirc.qr %d \n",(!obj_quirc.qr));
+    if(!_init_quirc(obj_quirc.fb.width,obj_quirc.fb.height))goto fail_qr;
     
     /* Fill out the image buffer here. image is a pointer to a w*h bytes. One byte per pixel, w pixels per line, h lines in the buffer.*/
-    uint8_t *image = quirc_begin(qr_global, NULL, NULL);
-    memcpy(image, buf, len_buf);
-    // printBuf(image,len_buf,"before quirc_end image");
-    quirc_end(qr_global);
+    uint8_t *image = quirc_begin(obj_quirc.qr, NULL, NULL);
+    memcpy(image, obj_quirc.fb.buf, obj_quirc.fb.len);
+    // printBuf(image,obj_quirc.fb.len,"before quirc_end image");
+    quirc_end(obj_quirc.qr);
     // 打印检查
-    // printBuf(image,len_buf,"after quirc_end image");
-    int num_codes = quirc_count(qr_global);
+    // printBuf(image,obj_quirc.fb.len,"after quirc_end image");
+    int num_codes = quirc_count(obj_quirc.qr);
     printf("quirc buf => num_codes----------------------> %d\n", num_codes);
 
     return num_codes;
@@ -256,9 +297,10 @@ fail_qr:
 
 // 解码
 STATIC int _decode_qrcode(char **list_str_res,int num_codes){
-    if (!qr_global) {
+    if (!obj_quirc.qr) {
         printf("couldn't allocate QR decoder\n");
-        buf=NULL;
+        close_quirc();
+        mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("allocate QR decoder NULL"));
         return false;
     }
     // int num_codes= sizeof(*list_str_res) / sizeof(**list_str_res);
@@ -268,7 +310,7 @@ STATIC int _decode_qrcode(char **list_str_res,int num_codes){
         /* We've previously fed an image to the decoder via quirc_begin/quirc_end.*/
         for (int i = 0; i < num_codes; i++) {
             struct quirc_code code;            
-            quirc_extract(qr_global, i, &code);
+            quirc_extract(obj_quirc.qr, i, &code);
 
             /* Decoding stage */
             struct quirc_data data;
@@ -279,14 +321,14 @@ STATIC int _decode_qrcode(char **list_str_res,int num_codes){
 
                 list_str_res[i]=heap_caps_malloc(strlen(quirc_strerror(err)), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
                 strcpy(list_str_res[i],(char *)quirc_strerror(err));
-                printf("Quirc DECODE:FAILED list_str_res: %s\n", list_str_res[i]);
+                !obj_quirc.is_debug?0:printf("Quirc DECODE:FAILED list_str_res: %s\n", list_str_res[i]);
 
             }else{
                 len_all+=data.payload_len;
 
                 list_str_res[i]=heap_caps_malloc(data.payload_len, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
                 strcpy(list_str_res[i],(char *)data.payload);
-                printf("Quirc DECODE:OK Data list_str_res: %s\n", list_str_res[i]);
+                !obj_quirc.is_debug?0:printf("Quirc DECODE:OK Data list_str_res: %s\n", list_str_res[i]);
             }
         }
         return len_all;
@@ -317,31 +359,33 @@ STATIC void loop_xtask_buf(){
     // const TickType_t xDelay = 500 / portTICK_PERIOD_MS;
     while (1)
     {
-        if(buf){
+        if(obj_quirc.fb.buf){
             // feed buf
+            !obj_quirc.is_debug?0:printf("xTask:before _feed_buf obj_quirc.fb.buf != NULL \n");
             int cnt_codes=_feed_buf();
-            // printf("xTask:after _feed_buf=%d \n",cnt_codes);
+            !obj_quirc.is_debug?0:printf("xTask:after _feed_buf=%d \n",cnt_codes);
             if(cnt_codes>0){
                 // decode
                 char *list_str_res[cnt_codes];
                 int len_str_res_join= _decode_qrcode(list_str_res,cnt_codes);//返回所有字符串连接后的总长度
                 // callback
-                _cb_fun_decode_res(mp_cb_decode,list_str_res,cnt_codes,len_str_res_join);
+                _cb_fun_decode_res(obj_quirc.mp_cb_decode,list_str_res,cnt_codes,len_str_res_join);
             }
-            buf=NULL;
-            // printf("xTask:after buf=NULL \n");
+            obj_quirc.fb.buf=NULL;
+            !obj_quirc.is_debug?0:printf("xTask:after buf=NULL \n");
         }
         vTaskSuspend(NULL);
         // vTaskDelay( xDelay );
     }
     // 清除xTask
-    vTaskDelete(handle_xtask_decode);
+    close_quirc();
+    mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("quirc.xTask loop out,delete"));
 }
 // -------------c 处理结束
 
 // -------------module 直接使用的接口
 // micropython接口，设置宽高，//？必须先设定？
-STATIC mp_obj_t mp_init_quirc(mp_obj_t in_int_w,mp_obj_t in_int_h)//const uint8_t *fb
+STATIC mp_obj_t mp_init_quirc(mp_obj_t in_int_w,mp_obj_t in_int_h)
 {
     if(!_init_quirc(mp_obj_get_int(in_int_w),mp_obj_get_int(in_int_h)))return mp_const_false;
     else return mp_const_true;
@@ -349,9 +393,9 @@ STATIC mp_obj_t mp_init_quirc(mp_obj_t in_int_w,mp_obj_t in_int_h)//const uint8_
 STATIC MP_DEFINE_CONST_FUN_OBJ_2(dr_mp_init_obj, mp_init_quirc);
  
 //micropython接口，传入bytes,图像，cbFuntion;宽，高 之前设定，或type quirc设定，或默认值
-STATIC mp_obj_t feed_buf(const mp_obj_t in_mp_obj_fb,mp_obj_t mp_cb_decode)//const uint8_t *fb
+STATIC mp_obj_t feed_buf(const mp_obj_t in_mp_obj_fb,mp_obj_t mp_cb_decode)
 {   
-    if(!buf){
+    if(!obj_quirc.fb.buf){
 //#ifdef CONFIG_ESP32CAM
 //    camera_fb_t *fb = NULL;
 //    fb = esp_camera_fb_get();
@@ -359,22 +403,27 @@ STATIC mp_obj_t feed_buf(const mp_obj_t in_mp_obj_fb,mp_obj_t mp_cb_decode)//con
 //        printf("Camera in qrcode Camera capture failed\n");
 //        // ESP_LOGE(TAG, "Camera capture failed");
 //    }
-//    buf= fb->buf;
-//    in_w = fb->width;
-//    in_h = fb->height;
-//    len_buf=fb->len;
+//    obj_quirc.fb.buf= fb->buf;
+//    obj_quirc.fb.width = fb->width;
+//    obj_quirc.fb.height = fb->height;
+//    obj_quirc.fb.len=fb->len;
 //#else
     // 从micorypython传回b""类型的图片数据，转成uint8_t *
         GET_STR_DATA_LEN(in_mp_obj_fb, byte_buf, len_byte_buf);
         // 赋予静态变量
-        buf=(uint8_t *)byte_buf;
-        len_buf=len_byte_buf;
-        if(handle_xtask_decode){
-            vTaskResume(handle_xtask_decode);
-            // printf("vTaskResume %d \n",(int)handle_xtask_decode);
+        !obj_quirc.is_debug?0:printBuf(byte_buf,len_byte_buf,"byte_buf receive=>");
+        obj_quirc.fb.buf=(uint8_t *)byte_buf;
+        obj_quirc.fb.len=(size_t)len_byte_buf;
+        !obj_quirc.is_debug?0:printBuf(obj_quirc.fb.buf,obj_quirc.fb.len,"obj_quirc.buf got=>");
+        if(obj_quirc.handle_xtask_decode){
+            vTaskResume(obj_quirc.handle_xtask_decode);
+            !obj_quirc.is_debug?0:printf("vTaskResume %p \n",obj_quirc.handle_xtask_decode);
+        }else{
+            close_quirc();
+            mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("quirc.xTask handle NULL"));
         }
+
         return mp_const_true;
-    // printBuf(buf,len_buf);    
 //#endif
     }
 
@@ -389,49 +438,49 @@ STATIC MP_DEFINE_CONST_FUN_OBJ_2(dr_mp_feed_buf_obj, feed_buf);
 
 // set cbFun of decode
 STATIC mp_obj_t set_quirc_cb(mp_obj_t in_cb_fun){
-    if(in_cb_fun != mp_const_none && mp_obj_is_callable(in_cb_fun))mp_cb_decode=in_cb_fun; // 保存到全局cbFunction
+    if(in_cb_fun != mp_const_none && mp_obj_is_callable(in_cb_fun))obj_quirc.mp_cb_decode=in_cb_fun; // 保存到全局cbFunction
     // else mp_cb_decode=NULL;
-    return mp_cb_decode;
+    return obj_quirc.mp_cb_decode;
 }
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(dr_mp_quirc_cb_obj, set_quirc_cb);
 
 
-//micropython接口，传入num_codes
-STATIC mp_obj_t decode_qrcode(mp_obj_t in_cnt_codes,mp_obj_t in_cb_fun)//const uint8_t *fb
-{
-    int cnt_codes = mp_obj_get_int(in_cnt_codes);
-    mp_obj_t mp_cb_decode=set_quirc_cb(in_cb_fun);
+// //micropython接口，传入num_codes
+// STATIC mp_obj_t decode_qrcode(mp_obj_t in_cnt_codes,mp_obj_t in_cb_fun)
+// {
+//     int cnt_codes = mp_obj_get_int(in_cnt_codes);
+//     mp_obj_t mp_cb_decode=set_quirc_cb(in_cb_fun);
     
-    char *list_str_res[cnt_codes];
-    int len_str_res_join= _decode_qrcode(list_str_res,cnt_codes);//返回所有字符串连接后的总长度
+//     char *list_str_res[cnt_codes];
+//     int len_str_res_join= _decode_qrcode(list_str_res,cnt_codes);//返回所有字符串连接后的总长度
 
-    // callback
-    bool is_decode_suc=_cb_fun_decode_res(mp_cb_decode,list_str_res,cnt_codes,len_str_res_join);
-    return is_decode_suc?mp_const_true:mp_const_false;//mp_obj_new_tuple(num_codes, out_tuple);    
-}
-// Define a Python reference to the function above.
-STATIC MP_DEFINE_CONST_FUN_OBJ_2(dr_mp_quirc_decode_obj, decode_qrcode);
+//     // callback
+//     bool is_decode_suc=_cb_fun_decode_res(mp_cb_decode,list_str_res,cnt_codes,len_str_res_join);
+//     return is_decode_suc?mp_const_true:mp_const_false;//mp_obj_new_tuple(num_codes, out_tuple);    
+// }
+// // Define a Python reference to the function above.
+// STATIC MP_DEFINE_CONST_FUN_OBJ_2(dr_mp_quirc_decode_obj, decode_qrcode);
 
 // 清理quirc函数
 STATIC mp_obj_t close_quirc()
 {
-    printf("quirc close=> !qr %d \n",(!qr_global));
-    if (qr_global) {        
-        quirc_destroy(qr_global);
-        qr_global=NULL;
-        printf("quirc close=> success \n");
+    // printf("quirc close=> !qr %d \n",(!obj_quirc.qr));
+    if (obj_quirc.qr) {        
+        quirc_destroy(obj_quirc.qr);
+        obj_quirc.qr=NULL;
     }
     // 清除xTask
-    if(handle_xtask_decode){
-        vTaskDelete(handle_xtask_decode);
-        handle_xtask_decode=NULL;
+    if(obj_quirc.handle_xtask_decode){
+        vTaskDelete(obj_quirc.handle_xtask_decode);
+        obj_quirc.handle_xtask_decode=NULL;
     }
     // 公共变量
-    buf=NULL;
-    len_buf=0;
-    in_w=0;
-    in_h=0;
-    mp_cb_decode=mp_const_none;
+    obj_quirc.fb.buf=NULL;
+    obj_quirc.fb.width=0;
+    obj_quirc.fb.height=0;
+    obj_quirc.fb.len=0;
+
+    obj_quirc.mp_cb_decode=mp_const_none;
 // #ifdef CONFIG_ESP32CAM
     // esp_err_t err = esp_camera_deinit();
 	// if (err != ESP_OK) 
@@ -441,40 +490,25 @@ STATIC mp_obj_t close_quirc()
 	// }
 	// return mp_const_true;
 // #endif
+    printf("quirc close:success \n");
     return mp_const_true;
 }
 STATIC MP_DEFINE_CONST_FUN_OBJ_0(dr_mp_close_quirc, close_quirc);
 
 ///////////////////////////////////定义quirc type
-// c用到的数据，用来处理对应的uPy数据；传入buf所需的结构体
-typedef struct _mp_obj_quirc_t
-{
-    mp_obj_base_t base;
-    uint8_t *buf;
-    size_t len_buf;
-    int in_w,in_h;
-    mp_obj_t mp_cb_decode;
-} mp_obj_quirc_t;
-const mp_obj_type_t mp_obj_quirc_type;
-///////////////////////////////////定义quirc type
 
 //quirc的成员函数 
 // set cbFun of decode
 STATIC mp_obj_t quirc_cb(mp_obj_t self_in,mp_obj_t in_cb_fun){
-    mp_obj_quirc_t *self = MP_OBJ_TO_PTR(self_in);  //从第一个参数中提取对象指针
-    if(set_quirc_cb(in_cb_fun))self->mp_cb_decode=mp_cb_decode;
-    else self->mp_cb_decode = mp_const_none;
-
-    return self->mp_cb_decode;
+    // mp_obj_quirc_t *self = MP_OBJ_TO_PTR(self_in);  //从第一个参数中提取对象指针
+    // if(!set_quirc_cb(in_cb_fun))self->mp_cb_decode=mp_cb_decode;
+    // else self->mp_cb_decode = mp_const_none;
+    return set_quirc_cb(in_cb_fun);
+    // return self->mp_cb_decode;
 } 
 STATIC MP_DEFINE_CONST_FUN_OBJ_2(quirc_cb_obj,quirc_cb);
 // feed buf for quirc
 STATIC mp_obj_t quirc_feed(mp_obj_t self_in , const mp_obj_t in_mp_obj_fb){//,mp_obj_t in_mp_cb_decode 
-    //if(in_mp_cb_decode != mp_const_none){ //可选第三个参数，cbFunction
-    //    self->mp_cb_decode=in_mp_cb_decode;
-    //}
-    //// 保存到全局
-    //mp_cb_decode=self->mp_cb_decode;
     mp_obj_quirc_t *self = MP_OBJ_TO_PTR(self_in);  //从第一个参数中提取对象指针
     return feed_buf(in_mp_obj_fb,self->mp_cb_decode);
 } 
@@ -498,21 +532,20 @@ STATIC const mp_rom_map_elem_t quirc_locals_dict_table[] = {
 STATIC MP_DEFINE_CONST_DICT(quirc_locals_dict,quirc_locals_dict_table);
 // 定义构造函数
 STATIC mp_obj_t quirc_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args) {
-    mp_arg_check_num(n_args, n_kw, 2, 3, true);// 检查参数个数，最少1个参数，最多3个参数
-    mp_obj_quirc_t *self = m_new_obj(mp_obj_quirc_t);
+    mp_arg_check_num(n_args, n_kw, 2, 4, true);// 检查参数个数，最少1个参数，最多3个参数
+    mp_obj_quirc_t *self = &obj_quirc;
     self->base.type = &mp_obj_quirc_type;
-    //// 从micorypython传回b""类型的图片数据，转成uint8_t *
-    //GET_STR_DATA_LEN(args[0], byte_buf, len_byte_buf);
-    //// 赋予静态变量
-    //self->buf=(uint8_t *)byte_buf;
-    //self->len_buf=len_byte_buf;
-    self->in_w = mp_obj_get_int(args[0]);//识别图像缩放宽
-    self->in_h = mp_obj_get_int(args[1]);//识别图像缩放高
-    printf("quirc_make_new _init_quirc return %d \n",(int)_init_quirc(self->in_w,self->in_h));
+    //// 赋予静态变量//改在_init_quirc赋值
+    self->fb.width = mp_obj_get_int(args[0]);//识别图像缩放宽
+    self->fb.height = mp_obj_get_int(args[1]);//识别图像缩放高
+    bool is_inited=_init_quirc(self->fb.width,self->fb.height)
 
-    
     if(n_args==3)quirc_cb(self,args[2]); //可选第三个参数，cbFunction
+    if(n_args==4)self->is_debug=mp_obj_is_true(args[3]); //可选第四个参数，是否debug输出
 
+    !obj_quirc.is_debug?0:printf("quirc_make_new _init_quirc return %d \n",(int)is_inited);
+    
+    
     return MP_OBJ_FROM_PTR(self);
 }
 const mp_obj_type_t mp_obj_quirc_type = { 
@@ -537,7 +570,7 @@ STATIC const mp_rom_map_elem_t dr_module_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR_init), MP_ROM_PTR(&dr_mp_init_obj) },
     { MP_ROM_QSTR(MP_QSTR_feed_quirc), MP_ROM_PTR(&dr_mp_feed_buf_obj) },
     { MP_ROM_QSTR(MP_QSTR_set_quirc_callback), MP_ROM_PTR(&dr_mp_quirc_cb_obj) },
-    { MP_ROM_QSTR(MP_QSTR_decode_quirc), MP_ROM_PTR(&dr_mp_quirc_decode_obj) },
+    // { MP_ROM_QSTR(MP_QSTR_decode_quirc), MP_ROM_PTR(&dr_mp_quirc_decode_obj) },
     { MP_ROM_QSTR(MP_QSTR_close_quirc), MP_ROM_PTR(&dr_mp_close_quirc) },
     // { MP_ROM_QSTR(MP_QSTR_init_camera), MP_ROM_PTR(&dr_mp_camera_init_obj) },
 };
