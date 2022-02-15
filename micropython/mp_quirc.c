@@ -31,10 +31,10 @@ void *m_malloc_dr(size_t num_bytes) {
 
 STATIC void loop_xtask_buf();
 // quirc
-#include "decode.c"
-#include "identify.c"
-#include "version_db.c"
-#include "quirc.c"
+#include "../lib/decode.c"
+#include "../lib/identify.c"
+#include "../lib/version_db.c"
+#include "../lib/quirc.c"
 // quirc--end
 
 ///////////////////////////////////定义quirc type
@@ -287,7 +287,7 @@ STATIC int _feed_buf()
     // 打印检查
     // printBuf(image,obj_quirc.fb.len,"after quirc_end image");
     int num_codes = quirc_count(obj_quirc.qr);
-    printf("quirc buf => num_codes----------------------> %d\n", num_codes);
+    printf("read cnt_codes in buf----------------------> %d\n", num_codes);
 
     return num_codes;
 // fail_qr_resize:
@@ -538,7 +538,7 @@ STATIC mp_obj_t quirc_make_new(const mp_obj_type_t *type, size_t n_args, size_t 
     //// 赋予静态变量//改在_init_quirc赋值
     self->fb.width = mp_obj_get_int(args[0]);//识别图像缩放宽
     self->fb.height = mp_obj_get_int(args[1]);//识别图像缩放高
-    bool is_inited=_init_quirc(self->fb.width,self->fb.height)
+    bool is_inited=_init_quirc(self->fb.width,self->fb.height);
 
     if(n_args==3)quirc_cb(self,args[2]); //可选第三个参数，cbFunction
     if(n_args==4)self->is_debug=mp_obj_is_true(args[3]); //可选第四个参数，是否debug输出
