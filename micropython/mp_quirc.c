@@ -150,75 +150,75 @@ typedef struct {
 } quirc_fb_t;
 
 // #ifndef CONFIG_ESP32CAM
-// typedef enum {
-//     FRAMESIZE_96X96,    // 96x96
-//     FRAMESIZE_QQVGA,    // 160x120
-//     FRAMESIZE_QCIF,     // 176x144
-//     FRAMESIZE_HQVGA,    // 240x176
-//     FRAMESIZE_240X240,  // 240x240
-//     FRAMESIZE_QVGA,     // 320x240
-//     FRAMESIZE_CIF,      // 400x296
-//     FRAMESIZE_HVGA,     // 480x320
-//     FRAMESIZE_VGA,      // 640x480
-//     FRAMESIZE_SVGA,     // 800x600
-//     FRAMESIZE_XGA,      // 1024x768
-//     FRAMESIZE_HD,       // 1280x720
-//     FRAMESIZE_SXGA,     // 1280x1024
-//     FRAMESIZE_UXGA,     // 1600x1200
-//     // 3MP Sensors
-//     FRAMESIZE_FHD,      // 1920x1080
-//     FRAMESIZE_P_HD,     //  720x1280
-//     FRAMESIZE_P_3MP,    //  864x1536
-//     FRAMESIZE_QXGA,     // 2048x1536
-//     // 5MP Sensors
-//     FRAMESIZE_QHD,      // 2560x1440
-//     FRAMESIZE_WQXGA,    // 2560x1600
-//     FRAMESIZE_P_FHD,    // 1080x1920
-//     FRAMESIZE_QSXGA,    // 2560x1920
-//     FRAMESIZE_INVALID
-// } framesize_t;
-// typedef enum {
-//     ASPECT_RATIO_4X3,
-//     ASPECT_RATIO_3X2,
-//     ASPECT_RATIO_16X10,
-//     ASPECT_RATIO_5X3,
-//     ASPECT_RATIO_16X9,
-//     ASPECT_RATIO_21X9,
-//     ASPECT_RATIO_5X4,
-//     ASPECT_RATIO_1X1,
-//     ASPECT_RATIO_9X16
-// } aspect_ratio_t;
-// typedef struct {
-//         const uint16_t width;
-//         const uint16_t height;
-//         const aspect_ratio_t aspect_ratio;
-// } resolution_info_t;
-// const resolution_info_t resolution[FRAMESIZE_INVALID] = {
-//     {   96,   96, ASPECT_RATIO_1X1   }, /* 96x96 */
-//     {  160,  120, ASPECT_RATIO_4X3   }, /* QQVGA */
-//     {  176,  144, ASPECT_RATIO_5X4   }, /* QCIF  */
-//     {  240,  176, ASPECT_RATIO_4X3   }, /* HQVGA */
-//     {  240,  240, ASPECT_RATIO_1X1   }, /* 240x240 */
-//     {  320,  240, ASPECT_RATIO_4X3   }, /* QVGA  */
-//     {  400,  296, ASPECT_RATIO_4X3   }, /* CIF   */
-//     {  480,  320, ASPECT_RATIO_3X2   }, /* HVGA  */
-//     {  640,  480, ASPECT_RATIO_4X3   }, /* VGA   */
-//     {  800,  600, ASPECT_RATIO_4X3   }, /* SVGA  */
-//     { 1024,  768, ASPECT_RATIO_4X3   }, /* XGA   */
-//     { 1280,  720, ASPECT_RATIO_16X9  }, /* HD    */
-//     { 1280, 1024, ASPECT_RATIO_5X4   }, /* SXGA  */
-//     { 1600, 1200, ASPECT_RATIO_4X3   }, /* UXGA  */
-//     // 3MP Sensors
-//     { 1920, 1080, ASPECT_RATIO_16X9  }, /* FHD   */
-//     {  720, 1280, ASPECT_RATIO_9X16  }, /* Portrait HD   */
-//     {  864, 1536, ASPECT_RATIO_9X16  }, /* Portrait 3MP   */
-//     { 2048, 1536, ASPECT_RATIO_4X3   }, /* QXGA  */
-//     // 5MP Sensors
-//     { 2560, 1440, ASPECT_RATIO_16X9  }, /* QHD    */
-//     { 2560, 1600, ASPECT_RATIO_16X10 }, /* WQXGA  */
-//     { 1088, 1920, ASPECT_RATIO_9X16  }, /* Portrait FHD   */
-//     { 2560, 1920, ASPECT_RATIO_4X3   }, /* QSXGA  */
-// };
+typedef enum {
+    FRAMESIZE_96X96,    // 96x96
+    FRAMESIZE_QQVGA,    // 160x120
+    FRAMESIZE_QCIF,     // 176x144
+    FRAMESIZE_HQVGA,    // 240x176
+    FRAMESIZE_240X240,  // 240x240
+    FRAMESIZE_QVGA,     // 320x240
+    FRAMESIZE_CIF,      // 400x296
+    FRAMESIZE_HVGA,     // 480x320
+    FRAMESIZE_VGA,      // 640x480
+    FRAMESIZE_SVGA,     // 800x600
+    FRAMESIZE_XGA,      // 1024x768
+    FRAMESIZE_HD,       // 1280x720
+    FRAMESIZE_SXGA,     // 1280x1024
+    FRAMESIZE_UXGA,     // 1600x1200
+    // 3MP Sensors
+    FRAMESIZE_FHD,      // 1920x1080
+    FRAMESIZE_P_HD,     //  720x1280
+    FRAMESIZE_P_3MP,    //  864x1536
+    FRAMESIZE_QXGA,     // 2048x1536
+    // 5MP Sensors
+    FRAMESIZE_QHD,      // 2560x1440
+    FRAMESIZE_WQXGA,    // 2560x1600
+    FRAMESIZE_P_FHD,    // 1080x1920
+    FRAMESIZE_QSXGA,    // 2560x1920
+    FRAMESIZE_INVALID
+} framesize_t;
+typedef enum {
+    ASPECT_RATIO_4X3,
+    ASPECT_RATIO_3X2,
+    ASPECT_RATIO_16X10,
+    ASPECT_RATIO_5X3,
+    ASPECT_RATIO_16X9,
+    ASPECT_RATIO_21X9,
+    ASPECT_RATIO_5X4,
+    ASPECT_RATIO_1X1,
+    ASPECT_RATIO_9X16
+} aspect_ratio_t;
+typedef struct {
+        const uint16_t width;
+        const uint16_t height;
+        const aspect_ratio_t aspect_ratio;
+} resolution_info_t;
+STATIC const resolution_info_t resolution[FRAMESIZE_INVALID] = {
+    {   96,   96, ASPECT_RATIO_1X1   }, /* 96x96 */
+    {  160,  120, ASPECT_RATIO_4X3   }, /* QQVGA */
+    {  176,  144, ASPECT_RATIO_5X4   }, /* QCIF  */
+    {  240,  176, ASPECT_RATIO_4X3   }, /* HQVGA */
+    {  240,  240, ASPECT_RATIO_1X1   }, /* 240x240 */
+    {  320,  240, ASPECT_RATIO_4X3   }, /* QVGA  */
+    {  400,  296, ASPECT_RATIO_4X3   }, /* CIF   */
+    {  480,  320, ASPECT_RATIO_3X2   }, /* HVGA  */
+    {  640,  480, ASPECT_RATIO_4X3   }, /* VGA   */
+    {  800,  600, ASPECT_RATIO_4X3   }, /* SVGA  */
+    { 1024,  768, ASPECT_RATIO_4X3   }, /* XGA   */
+    { 1280,  720, ASPECT_RATIO_16X9  }, /* HD    */
+    { 1280, 1024, ASPECT_RATIO_5X4   }, /* SXGA  */
+    { 1600, 1200, ASPECT_RATIO_4X3   }, /* UXGA  */
+    // 3MP Sensors
+    { 1920, 1080, ASPECT_RATIO_16X9  }, /* FHD   */
+    {  720, 1280, ASPECT_RATIO_9X16  }, /* Portrait HD   */
+    {  864, 1536, ASPECT_RATIO_9X16  }, /* Portrait 3MP   */
+    { 2048, 1536, ASPECT_RATIO_4X3   }, /* QXGA  */
+    // 5MP Sensors
+    { 2560, 1440, ASPECT_RATIO_16X9  }, /* QHD    */
+    { 2560, 1600, ASPECT_RATIO_16X10 }, /* WQXGA  */
+    { 1088, 1920, ASPECT_RATIO_9X16  }, /* Portrait FHD   */
+    { 2560, 1920, ASPECT_RATIO_4X3   }, /* QSXGA  */
+};
 // #endif
 
 // 自定义结构体
@@ -300,7 +300,7 @@ STATIC bool _init_quirc(const int in_local_w,const int in_local_h){
             mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("failed to create quirc task"));
             return false;
         }
-        DEBUG_printf("xTask begin %p \n",obj_quirc.handle_xtask_decode);
+        DEBUG_printf("[QUIRC.xTask] begin %p \n",obj_quirc.handle_xtask_decode);
     }
     return true;
 }
@@ -327,7 +327,7 @@ fail_qr:
 	return -1;
 }
 
-// 解码
+// 解码,修改传入的数组为结果，并返回总长度
 STATIC int _decode_qrcode(char **list_str_res,int num_codes){
     if (!obj_quirc.qr) {
         printf("couldn't allocate QR decoder\n");
@@ -369,24 +369,31 @@ STATIC int _decode_qrcode(char **list_str_res,int num_codes){
     }
     return 0;
 }
-
+STATIC mp_obj_t mp_obj_list_res_decode(int cnt_codes,char ** list_str_res)
+{
+    if(cnt_codes>0)
+    {
+        // 先生成，并及时释放list_str_res
+        mp_obj_t list_mp_str_res[cnt_codes];
+        for(int i=0;i<cnt_codes;i++){
+            list_mp_str_res[i]=mp_obj_new_str_dr((const char *)list_str_res[i],strlen(list_str_res[i]));
+            free(list_str_res[i]);
+        }
+        return mp_obj_new_list_dr(cnt_codes, list_mp_str_res);
+    }
+    return mp_const_none;
+}
 // 触发micropython的回调函数
 STATIC bool _cb_fun_decode_res(mp_obj_t mp_cb_decode,char ** list_str_res,int cnt_codes,int len_str_res_join){
     bool is_ready_to_callback=mp_cb_decode!=NULL && mp_cb_decode != mp_const_none && mp_obj_is_callable(mp_cb_decode);
     bool is_decode_success=list_str_res && len_str_res_join>0 && cnt_codes>0;
     // micropython callback
-    DEBUG_printf("xTask:_cb_fun_decode_res: is_ready_to_callback=%d ,is_decode_success =%d \n",is_ready_to_callback,is_decode_success);
+    DEBUG_printf("[QUIRC.xTask]:_cb_fun_decode_res: is_ready_to_callback=%d ,is_decode_success =%d \n",is_ready_to_callback,is_decode_success);
     if (is_ready_to_callback){
         if(is_decode_success)
         {
-            // 先生成，并及时释放list_str_res
-            mp_obj_t list_mp_str_res[cnt_codes];
-            for(int i=0;i<cnt_codes;i++){
-                list_mp_str_res[i]=is_ready_to_callback ? mp_obj_new_str_dr((const char *)list_str_res[i],strlen(list_str_res[i])) : NULL;
-                free(list_str_res[i]);
-            }
             // mp_call_function_1_protected(mp_cb_decode, mp_obj_new_str(str_res_long,strlen(str_res_long)));
-            mp_sched_schedule(mp_cb_decode, mp_obj_new_list_dr(cnt_codes, list_mp_str_res));
+            mp_sched_schedule(mp_cb_decode, mp_obj_list_res_decode(cnt_codes,list_str_res));
             return true;
         }
         else
@@ -401,16 +408,15 @@ STATIC bool _cb_fun_decode_res(mp_obj_t mp_cb_decode,char ** list_str_res,int cn
 
 // xTask用的循环检索buf，无buf挂起
 STATIC void loop_xtask_buf(){
-
     // 阻塞500ms.
     // const TickType_t xDelay = 500 / portTICK_PERIOD_MS;
     while (1)
     {
         if(obj_quirc.fb.buf){
             // feed buf
-            DEBUG_printf("xTask:before _feed_buf obj_quirc.fb.buf != NULL \n");
+            DEBUG_printf("[QUIRC.xTask]:before _feed_buf obj_quirc.fb.buf != NULL \n");
             int cnt_codes=_feed_buf();
-            DEBUG_printf("xTask:after _feed_buf=%d \n",cnt_codes);
+            DEBUG_printf("[QUIRC.xTask]:after _feed_buf=%d \n",cnt_codes);
             if(cnt_codes>0){
                 // decode
                 char *list_str_res[cnt_codes];
@@ -421,7 +427,7 @@ STATIC void loop_xtask_buf(){
                 _cb_fun_decode_res(obj_quirc.mp_cb_decode,NULL,cnt_codes,0);
             }
             obj_quirc.fb.buf=NULL;
-            DEBUG_printf("xTask:after buf=NULL \n");
+            DEBUG_printf("[QUIRC.xTask]:after buf=NULL \n");
         }
         vTaskSuspend(NULL);
         // vTaskDelay( xDelay );
@@ -434,61 +440,25 @@ STATIC void loop_xtask_buf(){
 
 // -------------module 直接使用的接口
 // micropython接口，设置宽高，//？必须先设定？
-STATIC mp_obj_t mp_init_quirc(mp_obj_t in_int_w,mp_obj_t in_int_h)
+STATIC mp_obj_t mp_init_quirc(mp_obj_t in_framesize)
 {
-    if(!_init_quirc(mp_obj_get_int(in_int_w),mp_obj_get_int(in_int_h)))return mp_const_false;
+    framesize_t frame_size = (framesize_t) mp_obj_get_int(in_framesize);
+    if (frame_size >= FRAMESIZE_96X96 && frame_size <= FRAMESIZE_QSXGA) 
+    {
+        obj_quirc.fb.width=resolution[frame_size].width;//resolution手动复制sensor.c声明
+        obj_quirc.fb.height=resolution[frame_size].height;//resolution手动复制sensor.c声明
+    }
+    else 
+    {
+        mp_raise_ValueError(MP_ERROR_TEXT("[Quirc.init] frame_size out of limits [FRAMESIZE_96X96-FRAMESIZE_QSXGA]\n"));
+        return mp_const_false;
+    }
+    if(!_init_quirc(obj_quirc.fb.width,obj_quirc.fb.height))return mp_const_false;
     else return mp_const_true;
 }
-STATIC MP_DEFINE_CONST_FUN_OBJ_2(dr_mp_init_obj, mp_init_quirc);
- 
-//micropython接口，传入bytes,图像，cbFuntion;宽，高 之前设定，或type quirc设定，或默认值
-STATIC mp_obj_t feed_buf(const mp_obj_t in_mp_obj_fb,mp_obj_t mp_cb_decode)
-{   
-    if(!obj_quirc.fb.buf){
-//#ifdef CONFIG_ESP32CAM
-//    camera_fb_t *fb = NULL;
-//    fb = esp_camera_fb_get();
-//    if (!fb) {
-//        printf("Camera in qrcode Camera capture failed\n");
-//        // ESP_LOGE(TAG, "Camera capture failed");
-//    }
-//    obj_quirc.fb.buf= fb->buf;
-//    obj_quirc.fb.width = fb->width;
-//    obj_quirc.fb.height = fb->height;
-//    obj_quirc.fb.len=fb->len;
-//#else
-    // 从micorypython传回b""类型的图片数据，转成uint8_t *
-        GET_STR_DATA_LEN(in_mp_obj_fb, byte_buf, len_byte_buf);
-        // 赋予静态变量
-        !(is_debug>1)?0:printBuf(byte_buf,len_byte_buf,"byte_buf receive=>");
-        obj_quirc.fb.buf=(uint8_t *)byte_buf;
-        obj_quirc.fb.len=(size_t)len_byte_buf;
-        !(is_debug>1)?0:printBuf(obj_quirc.fb.buf,obj_quirc.fb.len,"obj_quirc.buf got=>");
-        if(obj_quirc.handle_xtask_decode){
-            vTaskResume(obj_quirc.handle_xtask_decode);
-            DEBUG_printf("vTaskResume %p \n",obj_quirc.handle_xtask_decode);
-        }else{
-            close_quirc();
-            mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("quirc.xTask handle NULL"));
-        }
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(dr_mp_init_obj, mp_init_quirc);
 
-        return mp_const_true;
-//#endif
-    }else
-    {
-        DEBUG_printf("quirc.feed_buf=>obj_quirc.fb.buf = %p \n",obj_quirc.fb.buf);
-    }
-
-//#ifdef CONFIG_ESP32CAM
-//    esp_camera_fb_return(fb);
-//#endif
-    return mp_const_false;
-}
-// Define a Python reference to the function above.
-STATIC MP_DEFINE_CONST_FUN_OBJ_2(dr_mp_feed_buf_obj, feed_buf);
-
-
-// set cbFun of decode
+ // set cbFun of decode
 STATIC mp_obj_t set_quirc_cb(mp_obj_t in_cb_fun){
     if(in_cb_fun != mp_const_none && mp_obj_is_callable(in_cb_fun))obj_quirc.mp_cb_decode=in_cb_fun; // 保存到全局cbFunction
     // else mp_cb_decode=NULL;
@@ -497,21 +467,70 @@ STATIC mp_obj_t set_quirc_cb(mp_obj_t in_cb_fun){
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(dr_mp_quirc_cb_obj, set_quirc_cb);
 
 
-// //micropython接口，传入num_codes
-// STATIC mp_obj_t decode_qrcode(mp_obj_t in_cnt_codes,mp_obj_t in_cb_fun)
-// {
-//     int cnt_codes = mp_obj_get_int(in_cnt_codes);
-//     mp_obj_t mp_cb_decode=set_quirc_cb(in_cb_fun);
-    
-//     char *list_str_res[cnt_codes];
-//     int len_str_res_join= _decode_qrcode(list_str_res,cnt_codes);//返回所有字符串连接后的总长度
+//micropython接口，传入bytes,图像，cbFuntion;宽，高 之前设定，或type quirc设定，或默认值
+STATIC mp_obj_t feed_buf(const mp_obj_t in_mp_obj_fb,mp_obj_t mp_cb_decode)
+{
+    // 如果之前的已经处理完成，可继续；
+    if(!obj_quirc.fb.buf){
+        // 从micorypython传回b""类型的图片数据，转成uint8_t *
+        GET_STR_DATA_LEN(in_mp_obj_fb, byte_buf, len_byte_buf);
+        // 赋予静态变量
+        !(is_debug>1)?0:printBuf(byte_buf,len_byte_buf,"byte_buf receive=>");
+        obj_quirc.fb.buf=(uint8_t *)byte_buf;
+        obj_quirc.fb.len=(size_t)len_byte_buf;
+        !(is_debug>1)?0:printBuf(obj_quirc.fb.buf,obj_quirc.fb.len,"obj_quirc.buf got=>");
+        // 图像指针设置完成
 
-//     // callback
-//     bool is_decode_suc=_cb_fun_decode_res(mp_cb_decode,list_str_res,cnt_codes,len_str_res_join);
-//     return is_decode_suc?mp_const_true:mp_const_false;//mp_obj_new_tuple(num_codes, out_tuple);    
-// }
-// // Define a Python reference to the function above.
-// STATIC MP_DEFINE_CONST_FUN_OBJ_2(dr_mp_quirc_decode_obj, decode_qrcode);
+        // 触发同步/异步处理；
+        bool is_sync=(mp_cb_decode==mp_const_none);
+        // mp_cb_decode传入none为同步模式
+        if(is_sync)
+        {
+            // 同步模式，计算cnt_codes，并返回
+            int cnt_codes=_feed_buf();
+            DEBUG_printf("[QUIRC.feed]sync:after _feed_buf=%d \n",cnt_codes);
+            obj_quirc.fb.buf=NULL;
+            DEBUG_printf("[QUIRC.feed]sync:after buf=NULL \n");
+            // 没有结果返回0
+            if(cnt_codes<=0)return mp_obj_new_int(cnt_codes);
+            // decode
+            char *list_str_res[cnt_codes];
+            _decode_qrcode(list_str_res,cnt_codes);//返回所有字符串连接后的总长度
+            
+            return mp_obj_list_res_decode(cnt_codes,list_str_res);//返回none或list
+        }
+        else
+        {
+            // 异步模式: xTask有效，则resume；两种模式不同时执行
+            if(obj_quirc.handle_xtask_decode){
+                // mp_cb_decode有效,设置cbFun
+                set_quirc_cb(mp_cb_decode);
+                vTaskResume(obj_quirc.handle_xtask_decode);
+                DEBUG_printf("vTaskResume %p \n",obj_quirc.handle_xtask_decode);
+            }
+        }
+        return mp_const_true;
+    }
+    else
+    {
+        // 上一帧尚未完成
+        DEBUG_printf("[QUIRC.feed].busy with=>obj_quirc.fb.buf = %p \n",obj_quirc.fb.buf);
+    }
+    return mp_const_false;
+}
+// Define a Python reference to the function above.
+STATIC MP_DEFINE_CONST_FUN_OBJ_2(dr_mp_feed_buf_obj, feed_buf);
+
+
+
+
+//micropython接口，传入fb,同步decode模式
+STATIC mp_obj_t sync_decode(const mp_obj_t in_mp_obj_fb)
+{
+    return feed_buf(in_mp_obj_fb,mp_const_none);  
+}
+// Define a Python reference to the function above.
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(dr_mp_quirc_sync_decode_obj, sync_decode);
 
 // 清理quirc函数
 STATIC mp_obj_t close_quirc()
@@ -546,6 +565,23 @@ STATIC mp_obj_t close_quirc()
     return mp_const_true;
 }
 STATIC MP_DEFINE_CONST_FUN_OBJ_0(dr_mp_close_quirc, close_quirc);
+// 设置debug
+STATIC mp_obj_t debug(size_t n_args, const mp_obj_t *args)
+{
+    if (n_args == 0)
+    {
+        return mp_obj_new_int(is_debug); 
+    }
+	else
+    {
+        int in_debug=mp_obj_get_int(args[0]);
+        is_debug=in_debug;
+        obj_quirc.is_debug=is_debug;
+        return mp_const_true;  
+    }
+    return mp_const_false;
+}
+STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(mp_quric_debug_fun, 0, 1, debug);
 
 ///////////////////////////////////定义quirc type
 
@@ -580,44 +616,22 @@ STATIC const mp_rom_map_elem_t quirc_locals_dict_table[] = {
     { MP_ROM_QSTR(MP_QSTR_close), MP_ROM_PTR(&quirc_close_obj) },//关闭清理
     { MP_ROM_QSTR(MP_QSTR_set_cb), MP_ROM_PTR(&quirc_cb_obj) },//设置回调函数
     // const
-    // { MP_ROM_QSTR(MP_QSTR_FRAMESIZE_96X96    ), MP_ROM_INT(FRAMESIZE_96X96    )},  // 96x96
-	// { MP_ROM_QSTR(MP_QSTR_FRAMESIZE_QQVGA    ), MP_ROM_INT(FRAMESIZE_QQVGA    )},  // 160x120
-	// { MP_ROM_QSTR(MP_QSTR_FRAMESIZE_QCIF     ), MP_ROM_INT(FRAMESIZE_QCIF     )},  // 176x144
-	// { MP_ROM_QSTR(MP_QSTR_FRAMESIZE_HQVGA    ), MP_ROM_INT(FRAMESIZE_HQVGA    )},  // 240x176
-	// { MP_ROM_QSTR(MP_QSTR_FRAMESIZE_240X240  ), MP_ROM_INT(FRAMESIZE_240X240  )},  // 240x240
-	// { MP_ROM_QSTR(MP_QSTR_FRAMESIZE_QVGA     ), MP_ROM_INT(FRAMESIZE_QVGA     )},  // 320x240
-	// { MP_ROM_QSTR(MP_QSTR_FRAMESIZE_CIF      ), MP_ROM_INT(FRAMESIZE_CIF      )},  // 400x296
-	// { MP_ROM_QSTR(MP_QSTR_FRAMESIZE_HVGA     ), MP_ROM_INT(FRAMESIZE_HVGA     )},  // 480x320
-	// { MP_ROM_QSTR(MP_QSTR_FRAMESIZE_VGA      ), MP_ROM_INT(FRAMESIZE_VGA      )},  // 640x480
-	// { MP_ROM_QSTR(MP_QSTR_FRAMESIZE_SVGA     ), MP_ROM_INT(FRAMESIZE_SVGA     )},  // 800x600
-	// { MP_ROM_QSTR(MP_QSTR_FRAMESIZE_XGA      ), MP_ROM_INT(FRAMESIZE_XGA      )},  // 1024x768
-	// { MP_ROM_QSTR(MP_QSTR_FRAMESIZE_HD       ), MP_ROM_INT(FRAMESIZE_HD       )},  // 1280x720
-	// { MP_ROM_QSTR(MP_QSTR_FRAMESIZE_SXGA     ), MP_ROM_INT(FRAMESIZE_SXGA     )},  // 1280x1024
-	// { MP_ROM_QSTR(MP_QSTR_FRAMESIZE_UXGA     ), MP_ROM_INT(FRAMESIZE_UXGA     )},  // 1600x1200
-	// { MP_ROM_QSTR(MP_QSTR_FRAMESIZE_FHD      ), MP_ROM_INT(FRAMESIZE_FHD      )},  // 1920x1080
-	// { MP_ROM_QSTR(MP_QSTR_FRAMESIZE_P_HD     ), MP_ROM_INT(FRAMESIZE_P_HD     )},  //  720x1280
-	// { MP_ROM_QSTR(MP_QSTR_FRAMESIZE_P_3MP    ), MP_ROM_INT(FRAMESIZE_P_3MP    )},  //  864x1536
-	// { MP_ROM_QSTR(MP_QSTR_FRAMESIZE_QXGA     ), MP_ROM_INT(FRAMESIZE_QXGA     )},  // 2048x1536
-	// { MP_ROM_QSTR(MP_QSTR_FRAMESIZE_QHD      ), MP_ROM_INT(FRAMESIZE_QHD      )},  // 2560x1440
-	// { MP_ROM_QSTR(MP_QSTR_FRAMESIZE_WQXGA    ), MP_ROM_INT(FRAMESIZE_WQXGA    )},  // 2560x1600
-	// { MP_ROM_QSTR(MP_QSTR_FRAMESIZE_P_FHD    ), MP_ROM_INT(FRAMESIZE_P_FHD    )},  // 1080x1920
-	// { MP_ROM_QSTR(MP_QSTR_FRAMESIZE_QSXGA    ), MP_ROM_INT(FRAMESIZE_QSXGA    )},  // 2560x1920
 }; 
 //定义字典的宏 
 STATIC MP_DEFINE_CONST_DICT(quirc_locals_dict,quirc_locals_dict_table);
 // 定义构造函数
 STATIC mp_obj_t quirc_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args) {
-    mp_arg_check_num(n_args, n_kw, 2, 4, true);// 检查参数个数，最少1个参数，最多3个参数
+    mp_arg_check_num(n_args, n_kw, 1, 3, true);// 检查参数个数，最少1个参数，最多3个参数
     mp_obj_quirc_t *self = &obj_quirc;
     self->base.type = &mp_obj_quirc_type;
-    //// 赋予静态变量//改在_init_quirc赋值
-    self->fb.width = mp_obj_get_int(args[0]);//识别图像缩放宽
-    self->fb.height = mp_obj_get_int(args[1]);//识别图像缩放高
-    bool is_inited=_init_quirc(self->fb.width,self->fb.height);
+    //// 赋予静态变量
+    // self->fb.width = mp_obj_get_int(args[0]);//识别图像缩放宽
+    // self->fb.height = mp_obj_get_int(args[1]);//识别图像缩放高
+    bool is_inited=mp_obj_is_true(mp_init_quirc(args[0]));
 
-    if(n_args>=3)quirc_cb(self,args[2]); //可选第三个参数，cbFunction
-    if(n_args>=4){
-        self->is_debug=mp_obj_get_int(args[3]); //可选第四个参数，是否debug输出
+    if(n_args>=2)quirc_cb(self,args[1]); //可选第二个参数，cbFunction
+    if(n_args>=3){
+        self->is_debug=mp_obj_get_int(args[2]); //可选第三个参数，是否debug输出
         is_debug=self->is_debug;
     }
 
@@ -628,7 +642,7 @@ STATIC mp_obj_t quirc_make_new(const mp_obj_type_t *type, size_t n_args, size_t 
 }
 const mp_obj_type_t mp_obj_quirc_type = { 
     .base           =   { &mp_type_type }, 
-    .name           =   MP_QSTR_quirc,           //名字要在这里定义，不是写在DICT中，同样要经过注册才行，但是这个单词已经被注册过了，所以就不用重复注册了
+    .name           =   MP_QSTR_Quirc,           //名字要在这里定义，不是写在DICT中，同样要经过注册才行，但是这个单词已经被注册过了，所以就不用重复注册了
     .make_new       =   quirc_make_new,     //构造函数
     .locals_dict    =  (mp_obj_dict_t*)&quirc_locals_dict,  //注册quirc_locals_dict
 };
@@ -639,29 +653,53 @@ const mp_obj_type_t mp_obj_quirc_type = {
 // and the MicroPython object reference.
 // All identifiers and strings are written as MP_QSTR_xxx and will be
 // optimized to word-sized integers by the build system (interned strings).
-STATIC const mp_rom_map_elem_t dr_module_globals_table[] = {
-    { MP_ROM_QSTR(MP_QSTR___name__), MP_ROM_QSTR(MP_QSTR_dr) },
-    { MP_OBJ_NEW_QSTR(MP_QSTR_quirc), (mp_obj_t)&mp_obj_quirc_type },
+STATIC const mp_rom_map_elem_t quric_cmodule_globals_table[] = {
+    { MP_ROM_QSTR(MP_QSTR___name__), MP_ROM_QSTR(MP_QSTR_qrcode) },
+    { MP_OBJ_NEW_QSTR(MP_QSTR_Quirc), (mp_obj_t)&mp_obj_quirc_type },
     
     { MP_ROM_QSTR(MP_QSTR___del__),  MP_ROM_PTR(&dr_mp_close_quirc) },
 
     { MP_ROM_QSTR(MP_QSTR_init), MP_ROM_PTR(&dr_mp_init_obj) },
-    { MP_ROM_QSTR(MP_QSTR_feed_quirc), MP_ROM_PTR(&dr_mp_feed_buf_obj) },
-    { MP_ROM_QSTR(MP_QSTR_set_quirc_callback), MP_ROM_PTR(&dr_mp_quirc_cb_obj) },
-    // { MP_ROM_QSTR(MP_QSTR_decode_quirc), MP_ROM_PTR(&dr_mp_quirc_decode_obj) },
-    { MP_ROM_QSTR(MP_QSTR_close_quirc), MP_ROM_PTR(&dr_mp_close_quirc) },
-    // { MP_ROM_QSTR(MP_QSTR_init_camera), MP_ROM_PTR(&dr_mp_camera_init_obj) },
+    { MP_ROM_QSTR(MP_QSTR_feed), MP_ROM_PTR(&dr_mp_feed_buf_obj) },
+    { MP_ROM_QSTR(MP_QSTR_set_callback), MP_ROM_PTR(&dr_mp_quirc_cb_obj) },
+    { MP_ROM_QSTR(MP_QSTR_sync_decode), MP_ROM_PTR(&dr_mp_quirc_sync_decode_obj) },
+    { MP_ROM_QSTR(MP_QSTR_close), MP_ROM_PTR(&dr_mp_close_quirc) },
+    { MP_ROM_QSTR(MP_QSTR_quric_debug), MP_ROM_PTR(&mp_quric_debug_fun) },
+    // const
+    { MP_ROM_QSTR(MP_QSTR_FRAMESIZE_96X96    ), MP_ROM_INT(FRAMESIZE_96X96    )},  // 96x96
+	{ MP_ROM_QSTR(MP_QSTR_FRAMESIZE_QQVGA    ), MP_ROM_INT(FRAMESIZE_QQVGA    )},  // 160x120
+	{ MP_ROM_QSTR(MP_QSTR_FRAMESIZE_QCIF     ), MP_ROM_INT(FRAMESIZE_QCIF     )},  // 176x144
+	{ MP_ROM_QSTR(MP_QSTR_FRAMESIZE_HQVGA    ), MP_ROM_INT(FRAMESIZE_HQVGA    )},  // 240x176
+	{ MP_ROM_QSTR(MP_QSTR_FRAMESIZE_240X240  ), MP_ROM_INT(FRAMESIZE_240X240  )},  // 240x240
+	{ MP_ROM_QSTR(MP_QSTR_FRAMESIZE_QVGA     ), MP_ROM_INT(FRAMESIZE_QVGA     )},  // 320x240
+	{ MP_ROM_QSTR(MP_QSTR_FRAMESIZE_CIF      ), MP_ROM_INT(FRAMESIZE_CIF      )},  // 400x296
+	{ MP_ROM_QSTR(MP_QSTR_FRAMESIZE_HVGA     ), MP_ROM_INT(FRAMESIZE_HVGA     )},  // 480x320
+	{ MP_ROM_QSTR(MP_QSTR_FRAMESIZE_VGA      ), MP_ROM_INT(FRAMESIZE_VGA      )},  // 640x480
+	{ MP_ROM_QSTR(MP_QSTR_FRAMESIZE_SVGA     ), MP_ROM_INT(FRAMESIZE_SVGA     )},  // 800x600
+	{ MP_ROM_QSTR(MP_QSTR_FRAMESIZE_XGA      ), MP_ROM_INT(FRAMESIZE_XGA      )},  // 1024x768
+	{ MP_ROM_QSTR(MP_QSTR_FRAMESIZE_HD       ), MP_ROM_INT(FRAMESIZE_HD       )},  // 1280x720
+	{ MP_ROM_QSTR(MP_QSTR_FRAMESIZE_SXGA     ), MP_ROM_INT(FRAMESIZE_SXGA     )},  // 1280x1024
+	{ MP_ROM_QSTR(MP_QSTR_FRAMESIZE_UXGA     ), MP_ROM_INT(FRAMESIZE_UXGA     )},  // 1600x1200
+	{ MP_ROM_QSTR(MP_QSTR_FRAMESIZE_FHD      ), MP_ROM_INT(FRAMESIZE_FHD      )},  // 1920x1080
+	{ MP_ROM_QSTR(MP_QSTR_FRAMESIZE_P_HD     ), MP_ROM_INT(FRAMESIZE_P_HD     )},  //  720x1280
+	{ MP_ROM_QSTR(MP_QSTR_FRAMESIZE_P_3MP    ), MP_ROM_INT(FRAMESIZE_P_3MP    )},  //  864x1536
+	{ MP_ROM_QSTR(MP_QSTR_FRAMESIZE_QXGA     ), MP_ROM_INT(FRAMESIZE_QXGA     )},  // 2048x1536
+	{ MP_ROM_QSTR(MP_QSTR_FRAMESIZE_QHD      ), MP_ROM_INT(FRAMESIZE_QHD      )},  // 2560x1440
+	{ MP_ROM_QSTR(MP_QSTR_FRAMESIZE_WQXGA    ), MP_ROM_INT(FRAMESIZE_WQXGA    )},  // 2560x1600
+	{ MP_ROM_QSTR(MP_QSTR_FRAMESIZE_P_FHD    ), MP_ROM_INT(FRAMESIZE_P_FHD    )},  // 1080x1920
+	{ MP_ROM_QSTR(MP_QSTR_FRAMESIZE_QSXGA    ), MP_ROM_INT(FRAMESIZE_QSXGA    )},  // 2560x1920
+
 };
-STATIC MP_DEFINE_CONST_DICT(dr_module_globals, dr_module_globals_table);
+STATIC MP_DEFINE_CONST_DICT(quric_cmodule_globals, quric_cmodule_globals_table);
 
 // Define module object.
-const mp_obj_module_t dr_cmodule = {
+const mp_obj_module_t quric_cmodule = {
     .base = { &mp_type_module },
-    .globals = (mp_obj_dict_t *)&dr_module_globals,
+    .globals = (mp_obj_dict_t *)&quric_cmodule_globals,
 };
 
 // Register the module to make it available in Python.
 // Note: the "1" in the third argument means this module is always enabled.
 // This "1" can be optionally replaced with a macro like MODULE_CEXAMPLE_ENABLED
 // which can then be used to conditionally enable this module.
-MP_REGISTER_MODULE(MP_QSTR_dr, dr_cmodule, 1);
+MP_REGISTER_MODULE(MP_QSTR_qrcode, quric_cmodule, 1);
