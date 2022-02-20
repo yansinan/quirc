@@ -5,24 +5,122 @@
 #include "py/objstr.h" // GET_STR_DATA_LEN
 #include "py/builtin.h" // Many a time you will also need py/builtin.h, where the python built-in functions and modules are declared
 #include <string.h> //for memcpy
+// esp?
+// #include "esp_heap_caps.h"
+#ifndef DR_DEBUG_PRINT
+#define DR_DEBUG_PRINT 1
+#endif
+STATIC int is_debug=0;
+#ifdef DR_DEBUG_PRINT
+#define DEBUG_printf(...) !(is_debug>1)?0:printf(__VA_ARGS__)//ESP_LOGI("modCamera:", __VA_ARGS__)
+// debug输出
+// 测试用，查看buf内容
+STATIC void printBuf(const uint8_t *in_buf,int in_len,char *in_msg ){
+#ifdef DR_DEBUG_PRINT
+    for (int ii = 0; ii < 10; ii++){
+        printf("x%x,", *(in_buf + ii));
+	}
+    printf("%s buf[0:10]: %d len %d\n",in_msg, (int)in_buf,in_len);
+#endif
+}
+#else
+#define DEBUG_printf(...) (void)0
+#endif
 
 #define LIST_MIN_ALLOC_DR 4
-void *m_malloc_dr(size_t num_bytes) {
+STATIC void *m_malloc_dr(size_t num_bytes) {
     void *ptr = malloc(num_bytes);
+#ifdef CONFIG_ESP32CAM
+    //失败尝试用SPIRAM
+    if (ptr == NULL && num_bytes != 0)
+    {
+        DEBUG_printf("!!!!!!!!!!!!! m_malloc_dr.malloc fail \n try heap_caps_malloc...\n %u bytes, heap free in SPIRAM = %d \n", (uint)num_bytes,heap_caps_get_free_size(MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+        ptr = heap_caps_malloc(num_bytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);        
+    }
+#endif
     if (ptr == NULL && num_bytes != 0) {
-        m_malloc_fail(num_bytes);
+        // DEBUG_printf("!!!!!!!!!!!!! m_malloc_dr.malloc fail \n memory allocation failed, allocating %u bytes\n", (uint)num_bytes);
+        // #if MICROPY_ENABLE_GC
+        // if (gc_is_locked()) {
+        //     mp_raise_msg(&mp_type_MemoryError, MP_ERROR_TEXT("memory allocation failed, heap is locked"));
+        // }
+        // #endif
+        mp_raise_msg_varg(&mp_type_MemoryError,
+            MP_ERROR_TEXT("memory allocation failed, allocating %u bytes,\n heap free in SPIRAM = %d"), (uint)num_bytes,heap_caps_get_free_size(MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));        
     }
     #if MICROPY_MEM_STATS
     MP_STATE_MEM(total_bytes_allocated) += num_bytes;
     MP_STATE_MEM(current_bytes_allocated) += num_bytes;
     UPDATE_PEAK();
     #endif
-    // printf("m_malloc_dr %d : %p\n", num_bytes, ptr);
+    // DEBUG_printf("m_malloc_dr %d : %p\n", num_bytes, ptr);
     return ptr;
 }
 #define m_new_dr(type, num) ((type *)(m_malloc_dr(sizeof(type) * (num))))
 #define m_new_obj_dr(type) (m_new_dr(type, 1))
 #define mp_seq_clear_dr(start, len, alloc_len, item_sz) memset((byte *)(start) + (len) * (item_sz), 0, ((alloc_len) - (len)) * (item_sz))
+
+// // 解决mp_obj_new_str的bug，把功能层层展开
+// STATIC mp_obj_t mp_obj_new_str_dr(const char *data, size_t len)
+// {
+//     // printf("begin mp_obj_new_str_dr \n");
+//     // printf("begin mp_obj_new_str_dr %p %d \n",data,len);
+//     size_t len_mp_obj_str_t=sizeof(mp_obj_str_t) * (1);
+//     // printf("mp_obj_new_str_dr %d \n",len_mp_obj_str_t);
+//     mp_obj_str_t *o = (mp_obj_str_t *)(malloc(len_mp_obj_str_t));
+//     if (o == NULL && len_mp_obj_str_t != 0) {
+//         printf("!!!!!!!!!!!!!mp_obj_new_str_dr.malloc fail \n");
+//         m_malloc_fail(len_mp_obj_str_t);
+//     }
+//     o->base.type = &mp_type_str;
+//     o->len = len;
+//     if(data){
+//         // o->hash = qstr_compute_hash((const byte *)"_const_str_out1", len);
+//         // byte *p = m_new(byte, 15 + 1);
+//         int len_m_byte=sizeof(byte) * (len+1);
+//         byte *p = (byte *)(malloc(len_m_byte));
+//         o->data = p;
+//         // printf("after byte o->data \n");
+//         memcpy(p, (const byte *)data, len * sizeof(byte));
+//         p[len] = '\0'; // for now we add null for compatibility with C ASCIIZ strings
+//     }
+//     // printf("all done mp_obj_test before MP_OBJ_FROM_PTR \n");
+//     return MP_OBJ_FROM_PTR(o);
+// }
+// 解决mp_obj_new_str的bug，把功能层层展开
+STATIC mp_obj_t mp_obj_new_str_copy_dr(const mp_obj_type_t *type, const byte *data, size_t len) {
+    mp_obj_str_t *o = m_new_obj_dr(mp_obj_str_t);
+    o->base.type = &mp_type_bytes;
+    o->len = len;
+    byte *p = m_new_dr(byte, len + 1);
+    o->data = p;
+    if(data){
+        o->hash = qstr_compute_hash((const byte *)"_const_str_out1", len);
+        // DEBUG_printf("after byte o->data \n");
+        memcpy(p, (const byte *)data, len * sizeof(byte));
+    }
+    p[len] = '\0'; // for now we add null for compatibility with C ASCIIZ strings
+    // DEBUG_printf("all done mp_obj_test before MP_OBJ_FROM_PTR \n");
+    return MP_OBJ_FROM_PTR(o);
+}
+STATIC mp_obj_t mp_obj_new_str_dr(const char *data, size_t len){
+    return mp_obj_new_str_copy_dr(&mp_type_str, (const byte *)data, len);
+}
+// 解决mp_obj_list问题
+STATIC mp_obj_t mp_obj_new_list_dr(size_t n, mp_obj_t *items) {
+    mp_obj_list_t *o = m_new_obj_dr(mp_obj_list_t);
+    o->base.type = &mp_type_list;
+    o->alloc = n < LIST_MIN_ALLOC_DR ? LIST_MIN_ALLOC_DR : n;
+    o->len = n;
+    o->items = m_new_dr(mp_obj_t, o->alloc);
+    mp_seq_clear_dr(o->items, n, o->alloc, sizeof(*o->items));
+    if (items != NULL) {
+        for (size_t i = 0; i < n; i++) {
+            o->items[i] = items[i];
+        }
+    }
+    return MP_OBJ_FROM_PTR(o);
+}
 
 // freeRTOS
 #include "freertos/FreeRTOS.h" //configMAX_PRIORITIES
@@ -50,6 +148,79 @@ typedef struct {
     // pixformat_t format;         /*!< Format of the pixel data */
     // struct timeval timestamp;   /*!< Timestamp since boot of the first DMA buffer of the frame */
 } quirc_fb_t;
+
+// #ifndef CONFIG_ESP32CAM
+// typedef enum {
+//     FRAMESIZE_96X96,    // 96x96
+//     FRAMESIZE_QQVGA,    // 160x120
+//     FRAMESIZE_QCIF,     // 176x144
+//     FRAMESIZE_HQVGA,    // 240x176
+//     FRAMESIZE_240X240,  // 240x240
+//     FRAMESIZE_QVGA,     // 320x240
+//     FRAMESIZE_CIF,      // 400x296
+//     FRAMESIZE_HVGA,     // 480x320
+//     FRAMESIZE_VGA,      // 640x480
+//     FRAMESIZE_SVGA,     // 800x600
+//     FRAMESIZE_XGA,      // 1024x768
+//     FRAMESIZE_HD,       // 1280x720
+//     FRAMESIZE_SXGA,     // 1280x1024
+//     FRAMESIZE_UXGA,     // 1600x1200
+//     // 3MP Sensors
+//     FRAMESIZE_FHD,      // 1920x1080
+//     FRAMESIZE_P_HD,     //  720x1280
+//     FRAMESIZE_P_3MP,    //  864x1536
+//     FRAMESIZE_QXGA,     // 2048x1536
+//     // 5MP Sensors
+//     FRAMESIZE_QHD,      // 2560x1440
+//     FRAMESIZE_WQXGA,    // 2560x1600
+//     FRAMESIZE_P_FHD,    // 1080x1920
+//     FRAMESIZE_QSXGA,    // 2560x1920
+//     FRAMESIZE_INVALID
+// } framesize_t;
+// typedef enum {
+//     ASPECT_RATIO_4X3,
+//     ASPECT_RATIO_3X2,
+//     ASPECT_RATIO_16X10,
+//     ASPECT_RATIO_5X3,
+//     ASPECT_RATIO_16X9,
+//     ASPECT_RATIO_21X9,
+//     ASPECT_RATIO_5X4,
+//     ASPECT_RATIO_1X1,
+//     ASPECT_RATIO_9X16
+// } aspect_ratio_t;
+// typedef struct {
+//         const uint16_t width;
+//         const uint16_t height;
+//         const aspect_ratio_t aspect_ratio;
+// } resolution_info_t;
+// const resolution_info_t resolution[FRAMESIZE_INVALID] = {
+//     {   96,   96, ASPECT_RATIO_1X1   }, /* 96x96 */
+//     {  160,  120, ASPECT_RATIO_4X3   }, /* QQVGA */
+//     {  176,  144, ASPECT_RATIO_5X4   }, /* QCIF  */
+//     {  240,  176, ASPECT_RATIO_4X3   }, /* HQVGA */
+//     {  240,  240, ASPECT_RATIO_1X1   }, /* 240x240 */
+//     {  320,  240, ASPECT_RATIO_4X3   }, /* QVGA  */
+//     {  400,  296, ASPECT_RATIO_4X3   }, /* CIF   */
+//     {  480,  320, ASPECT_RATIO_3X2   }, /* HVGA  */
+//     {  640,  480, ASPECT_RATIO_4X3   }, /* VGA   */
+//     {  800,  600, ASPECT_RATIO_4X3   }, /* SVGA  */
+//     { 1024,  768, ASPECT_RATIO_4X3   }, /* XGA   */
+//     { 1280,  720, ASPECT_RATIO_16X9  }, /* HD    */
+//     { 1280, 1024, ASPECT_RATIO_5X4   }, /* SXGA  */
+//     { 1600, 1200, ASPECT_RATIO_4X3   }, /* UXGA  */
+//     // 3MP Sensors
+//     { 1920, 1080, ASPECT_RATIO_16X9  }, /* FHD   */
+//     {  720, 1280, ASPECT_RATIO_9X16  }, /* Portrait HD   */
+//     {  864, 1536, ASPECT_RATIO_9X16  }, /* Portrait 3MP   */
+//     { 2048, 1536, ASPECT_RATIO_4X3   }, /* QXGA  */
+//     // 5MP Sensors
+//     { 2560, 1440, ASPECT_RATIO_16X9  }, /* QHD    */
+//     { 2560, 1600, ASPECT_RATIO_16X10 }, /* WQXGA  */
+//     { 1088, 1920, ASPECT_RATIO_9X16  }, /* Portrait FHD   */
+//     { 2560, 1920, ASPECT_RATIO_4X3   }, /* QSXGA  */
+// };
+// #endif
+
 // 自定义结构体
 typedef struct _mp_obj_quirc_t
 {
@@ -61,6 +232,7 @@ typedef struct _mp_obj_quirc_t
 
     bool is_debug;
 } mp_obj_quirc_t;
+
 
 // 全局指针，等价于 mp_obj_quirc_t *self
 mp_obj_quirc_t obj_quirc={
@@ -79,149 +251,6 @@ const mp_obj_type_t mp_obj_quirc_type;
 STATIC mp_obj_t close_quirc();
 
 
-/*
-#ifdef CONFIG_ESP32CAM
-    #include "esp_log.h"
-	#include "esp_camera.h"
-
-    #define TAG "camera"
-    //WROVER-KIT PIN Map
-    #define CAM_PIN_PWDN    32 //power down is not used
-    #define CAM_PIN_RESET   -1 //software reset will be performed
-    #define CAM_PIN_XCLK     0
-    #define CAM_PIN_SIOD    26 // SDA
-    #define CAM_PIN_SIOC    27 // SCL
-
-    #define CAM_PIN_D7      35
-    #define CAM_PIN_D6      34
-    #define CAM_PIN_D5      39
-    #define CAM_PIN_D4      36
-    #define CAM_PIN_D3      21
-    #define CAM_PIN_D2      19
-    #define CAM_PIN_D1      18
-    #define CAM_PIN_D0       5
-    #define CAM_PIN_VSYNC   25
-    #define CAM_PIN_HREF    23
-    #define CAM_PIN_PCLK    22
-    static camera_config_t camera_config = 
-    {
-        .pin_pwdn  = CAM_PIN_PWDN,
-        .pin_reset = CAM_PIN_RESET,
-        .pin_xclk = CAM_PIN_XCLK,
-        .pin_sscb_sda = CAM_PIN_SIOD,
-        .pin_sscb_scl = CAM_PIN_SIOC,
-
-        .pin_d7 = CAM_PIN_D7,
-        .pin_d6 = CAM_PIN_D6,
-        .pin_d5 = CAM_PIN_D5,
-        .pin_d4 = CAM_PIN_D4,
-        .pin_d3 = CAM_PIN_D3,
-        .pin_d2 = CAM_PIN_D2,
-        .pin_d1 = CAM_PIN_D1,
-        .pin_d0 = CAM_PIN_D0,
-        .pin_vsync = CAM_PIN_VSYNC,
-        .pin_href = CAM_PIN_HREF,
-        .pin_pclk = CAM_PIN_PCLK,
-
-        //XCLK 20MHz or 10MHz for OV2640 double FPS (Experimental)
-        .xclk_freq_hz = 10000000,
-        .ledc_timer = LEDC_TIMER_0,
-        .ledc_channel = LEDC_CHANNEL_0,
-
-        .pixel_format = PIXFORMAT_GRAYSCALE,//YUV422,GRAYSCALE,RGB565,JPEG
-        .frame_size = FRAMESIZE_QVGA,//QQVGA-UXGA Do not use sizes above QVGA when not JPEG
-
-        .jpeg_quality = 10, //0-63 lower number means higher quality
-        .fb_count = 1 //if more than one, i2s runs in continuous mode. Use only with JPEG
-    };
-    STATIC mp_obj_t camera_init()
-    {
-        esp_err_t err = esp_camera_init(&camera_config);
-        if (err != ESP_OK) 
-        {
-            // ESP_LOGE(TAG, "Camera in qrcode init failed");
-            printf("Camera init failed\n");
-            return mp_const_false;
-        }
-        printf("Camera in qrcode init success!!\n");
-
-        printf("quirc camera_init obj_quirc.qr=> !qr %d \n",(!obj_quirc.qr));
-        if (!obj_quirc.qr) {
-	       obj_quirc.qr = quirc_new();
-        	if (!obj_quirc.qr) {
-               printf("couldn't allocate QR decoder\n");
-               goto fail_qr;
-           }
-        }
-        if (quirc_resize(obj_quirc.qr, 640, 480) < 0) {
-            printf("couldn't allocate QR buffer\n");
-            goto fail_qr_resize;
-        }
-        printf("quirc_resize() done\n");
-        return mp_const_true;
-    fail_qr_resize:
-    fail_qr:
-	    return mp_obj_new_int(0);
-    }
-    STATIC MP_DEFINE_CONST_FUN_OBJ_0(dr_mp_camera_init_obj, camera_init);
-
-#endif
-*/
-// #define DR_DEBUG_PRINT
-// debug输出
-// 测试用，查看buf内容
-STATIC void printBuf(const uint8_t *in_buf,int in_len,char *in_msg ){
-#ifdef DR_DEBUG_PRINT
-    for (int ii = 0; ii < 10; ii++){
-        printf("x%x,", *(in_buf + ii));
-	}
-    printf("%s buf[0:10]: %d len %d\n",in_msg, (int)in_buf,in_len);
-#endif
-}
-// 解决mp_obj_new_str的bug，把功能层层展开
-STATIC mp_obj_t mp_obj_new_str_dr(const char *data, size_t len)
-{
-    // printf("begin mp_obj_new_str_dr \n");
-    // printf("begin mp_obj_new_str_dr %p %d \n",data,len);
-    size_t len_mp_obj_str_t=sizeof(mp_obj_str_t) * (1);
-    // printf("mp_obj_new_str_dr %d \n",len_mp_obj_str_t);
-    mp_obj_str_t *o = (mp_obj_str_t *)(malloc(len_mp_obj_str_t));
-    if (o == NULL && len_mp_obj_str_t != 0) {
-        printf("!!!!!!!!!!!!!mp_obj_new_str_dr.malloc fail \n");
-        m_malloc_fail(len_mp_obj_str_t);
-    }
-    o->base.type = &mp_type_str;
-    o->len = len;
-    if(data){
-        // o->hash = qstr_compute_hash((const byte *)"_const_str_out1", len);
-        // byte *p = m_new(byte, 15 + 1);
-        int len_m_byte=sizeof(byte) * (len+1);
-        byte *p = (byte *)(malloc(len_m_byte));
-        
-        o->data = p;
-        // printf("after byte o->data \n");
-        memcpy(p, (const byte *)data, len * sizeof(byte));
-        p[len] = '\0'; // for now we add null for compatibility with C ASCIIZ strings
-    }
-    // printf("all done mp_obj_test before MP_OBJ_FROM_PTR \n");
-    return MP_OBJ_FROM_PTR(o);
-}
-
-// 解决mp_obj_list问题
-STATIC mp_obj_t mp_obj_new_list_dr(size_t n, mp_obj_t *items) {
-    mp_obj_list_t *o = m_new_obj_dr(mp_obj_list_t);
-    o->base.type = &mp_type_list;
-    o->alloc = n < LIST_MIN_ALLOC_DR ? LIST_MIN_ALLOC_DR : n;
-    o->len = n;
-    o->items = m_new_dr(mp_obj_t, o->alloc);
-    mp_seq_clear_dr(o->items, n, o->alloc, sizeof(*o->items));
-    if (items != NULL) {
-        for (size_t i = 0; i < n; i++) {
-            o->items[i] = items[i];
-        }
-    }
-    return MP_OBJ_FROM_PTR(o);
-}
 
 // 初始化quirc,xTask
 STATIC bool _init_quirc(const int in_local_w,const int in_local_h){
@@ -255,7 +284,10 @@ STATIC bool _init_quirc(const int in_local_w,const int in_local_h){
     // 给xTask
     if(!obj_quirc.handle_xtask_decode){
         // 测试过:20*1024不够
-        int mem_need=(obj_quirc.fb.width*obj_quirc.fb.height > 320*240) ? (80*1024)+8896 : 30*1024;//8896是quirc.payload的数组长度
+        // int mem_need=(obj_quirc.fb.width*obj_quirc.fb.height >= 320*240) ? (80*1024)+8896 : 30*1024;//8896是quirc.payload的数组长度
+        int mem_need=(obj_quirc.fb.width*obj_quirc.fb.height >= 320*240) ? (30*1024): 30*1024;//8896是quirc.payload的数组长度
+        mem_need += QUIRC_MAX_BITMAP + QUIRC_MAX_PAYLOAD;
+
         if (xTaskCreatePinnedToCore(
             loop_xtask_buf, 
             "task_quirc_read",
@@ -268,7 +300,7 @@ STATIC bool _init_quirc(const int in_local_w,const int in_local_h){
             mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("failed to create quirc task"));
             return false;
         }
-        !obj_quirc.is_debug?0:printf("xTask begin %p \n",obj_quirc.handle_xtask_decode);
+        DEBUG_printf("xTask begin %p \n",obj_quirc.handle_xtask_decode);
     }
     return true;
 }
@@ -282,12 +314,12 @@ STATIC int _feed_buf()
     /* Fill out the image buffer here. image is a pointer to a w*h bytes. One byte per pixel, w pixels per line, h lines in the buffer.*/
     uint8_t *image = quirc_begin(obj_quirc.qr, NULL, NULL);
     memcpy(image, obj_quirc.fb.buf, obj_quirc.fb.len);
-    // printBuf(image,obj_quirc.fb.len,"before quirc_end image");
+    !(is_debug>1)?0:printBuf(image,obj_quirc.fb.len,"before quirc_end image");
     quirc_end(obj_quirc.qr);
     // 打印检查
-    // printBuf(image,obj_quirc.fb.len,"after quirc_end image");
+    !(is_debug>1)?0:printBuf(image,obj_quirc.fb.len,"after quirc_end image");
     int num_codes = quirc_count(obj_quirc.qr);
-    printf("read cnt_codes in buf----------------------> %d\n", num_codes);
+    !(is_debug>0)?0:printf("read cnt_codes in buf----------------------> %d \n", num_codes);
 
     return num_codes;
 // fail_qr_resize:
@@ -319,16 +351,18 @@ STATIC int _decode_qrcode(char **list_str_res,int num_codes){
             if (err){
                 len_all+=strlen(quirc_strerror(err));
 
-                list_str_res[i]=heap_caps_malloc(strlen(quirc_strerror(err)), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+                // list_str_res[i]=heap_caps_malloc(strlen(quirc_strerror(err)), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+                list_str_res[i]=m_malloc_dr(strlen(quirc_strerror(err)));
                 strcpy(list_str_res[i],(char *)quirc_strerror(err));
-                !obj_quirc.is_debug?0:printf("Quirc DECODE:FAILED list_str_res: %s\n", list_str_res[i]);
+                DEBUG_printf("Quirc DECODE:FAILED list_str_res: %s\n", list_str_res[i]);
 
             }else{
                 len_all+=data.payload_len;
 
-                list_str_res[i]=heap_caps_malloc(data.payload_len, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+                // list_str_res[i]=heap_caps_malloc(data.payload_len, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+                list_str_res[i]=m_malloc_dr(data.payload_len);
                 strcpy(list_str_res[i],(char *)data.payload);
-                !obj_quirc.is_debug?0:printf("Quirc DECODE:OK Data list_str_res: %s\n", list_str_res[i]);
+                DEBUG_printf("Quirc DECODE:OK Data list_str_res: %s\n", list_str_res[i]);
             }
         }
         return len_all;
@@ -338,17 +372,30 @@ STATIC int _decode_qrcode(char **list_str_res,int num_codes){
 
 // 触发micropython的回调函数
 STATIC bool _cb_fun_decode_res(mp_obj_t mp_cb_decode,char ** list_str_res,int cnt_codes,int len_str_res_join){
+    bool is_ready_to_callback=mp_cb_decode!=NULL && mp_cb_decode != mp_const_none && mp_obj_is_callable(mp_cb_decode);
+    bool is_decode_success=list_str_res && len_str_res_join>0 && cnt_codes>0;
     // micropython callback
-    if (mp_cb_decode!=NULL && mp_cb_decode != mp_const_none && cnt_codes>0 && mp_obj_is_callable(mp_cb_decode) && len_str_res_join>0){
-        // mp_call_function_1_protected(mp_cb_decode, mp_obj_new_str(str_res_long,strlen(str_res_long)));
-        mp_obj_t list_mp_str_res[cnt_codes];
-        for(int i=0;i<cnt_codes;i++){
-            list_mp_str_res[i]=mp_obj_new_str_dr((const char *)list_str_res[i],strlen(list_str_res[i]));
-            free(list_str_res[i]);
+    DEBUG_printf("xTask:_cb_fun_decode_res: is_ready_to_callback=%d ,is_decode_success =%d \n",is_ready_to_callback,is_decode_success);
+    if (is_ready_to_callback){
+        if(is_decode_success)
+        {
+            // 先生成，并及时释放list_str_res
+            mp_obj_t list_mp_str_res[cnt_codes];
+            for(int i=0;i<cnt_codes;i++){
+                list_mp_str_res[i]=is_ready_to_callback ? mp_obj_new_str_dr((const char *)list_str_res[i],strlen(list_str_res[i])) : NULL;
+                free(list_str_res[i]);
+            }
+            // mp_call_function_1_protected(mp_cb_decode, mp_obj_new_str(str_res_long,strlen(str_res_long)));
+            mp_sched_schedule(mp_cb_decode, mp_obj_new_list_dr(cnt_codes, list_mp_str_res));
+            return true;
         }
-        mp_sched_schedule(mp_cb_decode, mp_obj_new_list_dr(cnt_codes, list_mp_str_res));
-        return true;
+        else
+        {
+            mp_sched_schedule(mp_cb_decode, mp_const_none);
+            return true;
+        }
     }
+    
     return false;
 }
 
@@ -361,18 +408,20 @@ STATIC void loop_xtask_buf(){
     {
         if(obj_quirc.fb.buf){
             // feed buf
-            !obj_quirc.is_debug?0:printf("xTask:before _feed_buf obj_quirc.fb.buf != NULL \n");
+            DEBUG_printf("xTask:before _feed_buf obj_quirc.fb.buf != NULL \n");
             int cnt_codes=_feed_buf();
-            !obj_quirc.is_debug?0:printf("xTask:after _feed_buf=%d \n",cnt_codes);
+            DEBUG_printf("xTask:after _feed_buf=%d \n",cnt_codes);
             if(cnt_codes>0){
                 // decode
                 char *list_str_res[cnt_codes];
                 int len_str_res_join= _decode_qrcode(list_str_res,cnt_codes);//返回所有字符串连接后的总长度
                 // callback
                 _cb_fun_decode_res(obj_quirc.mp_cb_decode,list_str_res,cnt_codes,len_str_res_join);
+            }else{
+                _cb_fun_decode_res(obj_quirc.mp_cb_decode,NULL,cnt_codes,0);
             }
             obj_quirc.fb.buf=NULL;
-            !obj_quirc.is_debug?0:printf("xTask:after buf=NULL \n");
+            DEBUG_printf("xTask:after buf=NULL \n");
         }
         vTaskSuspend(NULL);
         // vTaskDelay( xDelay );
@@ -411,13 +460,13 @@ STATIC mp_obj_t feed_buf(const mp_obj_t in_mp_obj_fb,mp_obj_t mp_cb_decode)
     // 从micorypython传回b""类型的图片数据，转成uint8_t *
         GET_STR_DATA_LEN(in_mp_obj_fb, byte_buf, len_byte_buf);
         // 赋予静态变量
-        !obj_quirc.is_debug?0:printBuf(byte_buf,len_byte_buf,"byte_buf receive=>");
+        !(is_debug>1)?0:printBuf(byte_buf,len_byte_buf,"byte_buf receive=>");
         obj_quirc.fb.buf=(uint8_t *)byte_buf;
         obj_quirc.fb.len=(size_t)len_byte_buf;
-        !obj_quirc.is_debug?0:printBuf(obj_quirc.fb.buf,obj_quirc.fb.len,"obj_quirc.buf got=>");
+        !(is_debug>1)?0:printBuf(obj_quirc.fb.buf,obj_quirc.fb.len,"obj_quirc.buf got=>");
         if(obj_quirc.handle_xtask_decode){
             vTaskResume(obj_quirc.handle_xtask_decode);
-            !obj_quirc.is_debug?0:printf("vTaskResume %p \n",obj_quirc.handle_xtask_decode);
+            DEBUG_printf("vTaskResume %p \n",obj_quirc.handle_xtask_decode);
         }else{
             close_quirc();
             mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("quirc.xTask handle NULL"));
@@ -425,6 +474,9 @@ STATIC mp_obj_t feed_buf(const mp_obj_t in_mp_obj_fb,mp_obj_t mp_cb_decode)
 
         return mp_const_true;
 //#endif
+    }else
+    {
+        DEBUG_printf("quirc.feed_buf=>obj_quirc.fb.buf = %p \n",obj_quirc.fb.buf);
     }
 
 //#ifdef CONFIG_ESP32CAM
@@ -527,6 +579,29 @@ STATIC const mp_rom_map_elem_t quirc_locals_dict_table[] = {
     { MP_ROM_QSTR(MP_QSTR_feed), MP_ROM_PTR(&quirc_feed_obj) },//喂图
     { MP_ROM_QSTR(MP_QSTR_close), MP_ROM_PTR(&quirc_close_obj) },//关闭清理
     { MP_ROM_QSTR(MP_QSTR_set_cb), MP_ROM_PTR(&quirc_cb_obj) },//设置回调函数
+    // const
+    // { MP_ROM_QSTR(MP_QSTR_FRAMESIZE_96X96    ), MP_ROM_INT(FRAMESIZE_96X96    )},  // 96x96
+	// { MP_ROM_QSTR(MP_QSTR_FRAMESIZE_QQVGA    ), MP_ROM_INT(FRAMESIZE_QQVGA    )},  // 160x120
+	// { MP_ROM_QSTR(MP_QSTR_FRAMESIZE_QCIF     ), MP_ROM_INT(FRAMESIZE_QCIF     )},  // 176x144
+	// { MP_ROM_QSTR(MP_QSTR_FRAMESIZE_HQVGA    ), MP_ROM_INT(FRAMESIZE_HQVGA    )},  // 240x176
+	// { MP_ROM_QSTR(MP_QSTR_FRAMESIZE_240X240  ), MP_ROM_INT(FRAMESIZE_240X240  )},  // 240x240
+	// { MP_ROM_QSTR(MP_QSTR_FRAMESIZE_QVGA     ), MP_ROM_INT(FRAMESIZE_QVGA     )},  // 320x240
+	// { MP_ROM_QSTR(MP_QSTR_FRAMESIZE_CIF      ), MP_ROM_INT(FRAMESIZE_CIF      )},  // 400x296
+	// { MP_ROM_QSTR(MP_QSTR_FRAMESIZE_HVGA     ), MP_ROM_INT(FRAMESIZE_HVGA     )},  // 480x320
+	// { MP_ROM_QSTR(MP_QSTR_FRAMESIZE_VGA      ), MP_ROM_INT(FRAMESIZE_VGA      )},  // 640x480
+	// { MP_ROM_QSTR(MP_QSTR_FRAMESIZE_SVGA     ), MP_ROM_INT(FRAMESIZE_SVGA     )},  // 800x600
+	// { MP_ROM_QSTR(MP_QSTR_FRAMESIZE_XGA      ), MP_ROM_INT(FRAMESIZE_XGA      )},  // 1024x768
+	// { MP_ROM_QSTR(MP_QSTR_FRAMESIZE_HD       ), MP_ROM_INT(FRAMESIZE_HD       )},  // 1280x720
+	// { MP_ROM_QSTR(MP_QSTR_FRAMESIZE_SXGA     ), MP_ROM_INT(FRAMESIZE_SXGA     )},  // 1280x1024
+	// { MP_ROM_QSTR(MP_QSTR_FRAMESIZE_UXGA     ), MP_ROM_INT(FRAMESIZE_UXGA     )},  // 1600x1200
+	// { MP_ROM_QSTR(MP_QSTR_FRAMESIZE_FHD      ), MP_ROM_INT(FRAMESIZE_FHD      )},  // 1920x1080
+	// { MP_ROM_QSTR(MP_QSTR_FRAMESIZE_P_HD     ), MP_ROM_INT(FRAMESIZE_P_HD     )},  //  720x1280
+	// { MP_ROM_QSTR(MP_QSTR_FRAMESIZE_P_3MP    ), MP_ROM_INT(FRAMESIZE_P_3MP    )},  //  864x1536
+	// { MP_ROM_QSTR(MP_QSTR_FRAMESIZE_QXGA     ), MP_ROM_INT(FRAMESIZE_QXGA     )},  // 2048x1536
+	// { MP_ROM_QSTR(MP_QSTR_FRAMESIZE_QHD      ), MP_ROM_INT(FRAMESIZE_QHD      )},  // 2560x1440
+	// { MP_ROM_QSTR(MP_QSTR_FRAMESIZE_WQXGA    ), MP_ROM_INT(FRAMESIZE_WQXGA    )},  // 2560x1600
+	// { MP_ROM_QSTR(MP_QSTR_FRAMESIZE_P_FHD    ), MP_ROM_INT(FRAMESIZE_P_FHD    )},  // 1080x1920
+	// { MP_ROM_QSTR(MP_QSTR_FRAMESIZE_QSXGA    ), MP_ROM_INT(FRAMESIZE_QSXGA    )},  // 2560x1920
 }; 
 //定义字典的宏 
 STATIC MP_DEFINE_CONST_DICT(quirc_locals_dict,quirc_locals_dict_table);
@@ -541,9 +616,12 @@ STATIC mp_obj_t quirc_make_new(const mp_obj_type_t *type, size_t n_args, size_t 
     bool is_inited=_init_quirc(self->fb.width,self->fb.height);
 
     if(n_args>=3)quirc_cb(self,args[2]); //可选第三个参数，cbFunction
-    if(n_args>=4)self->is_debug=mp_obj_is_true(args[3]); //可选第四个参数，是否debug输出
+    if(n_args>=4){
+        self->is_debug=mp_obj_get_int(args[3]); //可选第四个参数，是否debug输出
+        is_debug=self->is_debug;
+    }
 
-    !obj_quirc.is_debug?0:printf("quirc_make_new _init_quirc return %d \n",(int)is_inited);
+    DEBUG_printf("quirc_make_new _init_quirc return %d \n",(int)is_inited);
     
     
     return MP_OBJ_FROM_PTR(self);
