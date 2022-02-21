@@ -34,7 +34,7 @@ STATIC void *m_malloc_dr(size_t num_bytes) {
     //失败尝试用SPIRAM
     if (ptr == NULL && num_bytes != 0)
     {
-        DEBUG_printf("!!!!!!!!!!!!! m_malloc_dr.malloc fail \n try heap_caps_malloc...\n %u bytes, heap free in SPIRAM = %d \n", (uint)num_bytes,heap_caps_get_free_size(MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+        printf("!!!!!!!!!!!!! m_malloc_dr.malloc fail \n try heap_caps_malloc...\n %u bytes, heap free in SPIRAM = %d \n", (uint)num_bytes,heap_caps_get_free_size(MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
         ptr = heap_caps_malloc(num_bytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);        
     }
 #endif
@@ -402,7 +402,9 @@ STATIC bool _cb_fun_decode_res(mp_obj_t mp_cb_decode,char ** list_str_res,int cn
             return true;
         }
     }
-    
+    for(int i=0;i<cnt_codes;i++){
+        free(list_str_res[i]);
+    }
     return false;
 }
 
@@ -496,7 +498,10 @@ STATIC mp_obj_t feed_buf(const mp_obj_t in_mp_obj_fb,mp_obj_t mp_cb_decode)
             // decode
             char *list_str_res[cnt_codes];
             _decode_qrcode(list_str_res,cnt_codes);//返回所有字符串连接后的总长度
-            
+            // _decode_qrcode 里产生了 A stack overflow in task mp_task has been detected.
+            // 继续排除：not free;_decode_qrcode？m_malloc_dr??
+            // 解决：#define MP_TASK_STACK_SIZE      (46 * 1024) //(16 * 1024)  micropython任务内存
+            // (26 * 1024) 可以用在QQVGA，QVGA
             return mp_obj_list_res_decode(cnt_codes,list_str_res);//返回none或list
         }
         else
